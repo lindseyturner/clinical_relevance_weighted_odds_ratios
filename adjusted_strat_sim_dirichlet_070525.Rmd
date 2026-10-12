@@ -1,0 +1,1071 @@
+---
+title: "Stratified Model"
+output: pdf_document
+date: "2025-06-25"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(kableExtra)
+library(LaplacesDemon)
+library(spatstat.utils)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(cowplot)
+library(rje)
+source('/users/3/turne899/Stratified_Model/sample_size_functions.R')
+```
+
+
+```{r, echo = F}
+### read in all simulation results 
+sim_results <- NA 
+for (i in c(1:360)) {
+  sim_results_new <- as.data.frame(readRDS(paste0('/users/3/turne899/Stratified_Model/adjusted_sim_dirichlet_0705/results_array_070525_',  i, '.rds')))
+  sim_results_new$array <- i
+  if (i == 1) {
+    sim_results <- sim_results_new
+  } else {
+    sim_results <- rbind(sim_results, sim_results_new)
+  }
+}
+```
+
+
+```{r, echo = F, warning = F, out.width="75%"}
+# calculate the true values of wOR 
+#make plot of the various scenarios
+pc <- c(0.70, 0.18, 0.09, 0.02, 0.01)
+pc2 <- c(0.70, 0.18, 0.09, 0.02, 0.01)
+alphas <- logit(cumsum(pc2))
+pt1 <- pc2
+# x2 beta 
+beta2 <- 0.75
+# x3 beta 
+beta3 <- -0.1
+# simulation scenarios 
+# scenario 1: null 
+beta1_1 <- 0 
+pc1 <- c(expit(alphas[1] - 0.5 * beta1_1), 
+         expit(alphas[2] - 0.5 * beta1_1) - expit(alphas[1] - 0.5 * beta1_1),
+         expit(alphas[3] - 0.5 * beta1_1) - expit(alphas[2] - 0.5 * beta1_1),
+         expit(alphas[4] - 0.5 * beta1_1) - expit(alphas[3] - 0.5 * beta1_1),
+         1 - expit(alphas[4] - 0.5 * beta1_1))
+pt1 <- pc1 
+# scenario 2: PO 
+beta1_2 <- log(1.47)
+pc2 <- c(expit(alphas[1] - 0.5 * beta1_2), 
+         expit(alphas[2] - 0.5 * beta1_2) - expit(alphas[1] - 0.5 * beta1_2),
+         expit(alphas[3] - 0.5 * beta1_2) - expit(alphas[2] - 0.5 * beta1_2),
+         expit(alphas[4] - 0.5 * beta1_2) - expit(alphas[3] - 0.5 * beta1_2),
+         1 - expit(alphas[4] - 0.5 * beta1_2))
+pt2 <- c(expit(alphas[1] + 0.5 * beta1_2), 
+         expit(alphas[2] + 0.5 * beta1_2) - expit(alphas[1] + 0.5 * beta1_2),
+         expit(alphas[3] + 0.5 * beta1_2) - expit(alphas[2] + 0.5 * beta1_2),
+         expit(alphas[4] + 0.5 * beta1_2) - expit(alphas[3] + 0.5 * beta1_2),
+         1 - expit(alphas[4] + 0.5 * beta1_2))
+# scenario 3: PO 
+beta1_3 <- log(1.60)
+pc3 <- c(expit(alphas[1] - 0.5 * beta1_3), 
+         expit(alphas[2] - 0.5 * beta1_3) - expit(alphas[1] - 0.5 * beta1_3),
+         expit(alphas[3] - 0.5 * beta1_3) - expit(alphas[2] - 0.5 * beta1_3),
+         expit(alphas[4] - 0.5 * beta1_3) - expit(alphas[3] - 0.5 * beta1_3),
+         1 - expit(alphas[4] - 0.5 * beta1_3))
+pt3 <- c(expit(alphas[1] + 0.5 * beta1_3), 
+         expit(alphas[2] + 0.5 * beta1_3) - expit(alphas[1] + 0.5 * beta1_3),
+         expit(alphas[3] + 0.5 * beta1_3) - expit(alphas[2] + 0.5 * beta1_3),
+         expit(alphas[4] + 0.5 * beta1_3) - expit(alphas[3] + 0.5 * beta1_3),
+         1 - expit(alphas[4] + 0.5 * beta1_3))
+# scenario 4: NP 1
+beta11_4 <- log(1.36)
+beta12_4 <- log(2.14)
+beta13_4 <- log(3.06)
+beta14_4 <- log(2.01)
+
+pc4 <- c(expit(alphas[1] - 0.5 * beta11_4), 
+         expit(alphas[2] - 0.5 * beta12_4) - expit(alphas[1] - 0.5 * beta11_4),
+         expit(alphas[3] - 0.5 * beta13_4) - expit(alphas[2] - 0.5 * beta12_4),
+         expit(alphas[4] - 0.5 * beta14_4) - expit(alphas[3] - 0.5 * beta13_4),
+         1 - expit(alphas[4] - 0.5 * beta14_4))
+pt4 <- c(expit(alphas[1] + 0.5 * beta11_4), 
+         expit(alphas[2] + 0.5 * beta12_4) - expit(alphas[1] + 0.5 * beta11_4),
+         expit(alphas[3] + 0.5 * beta13_4) - expit(alphas[2] + 0.5 * beta12_4),
+         expit(alphas[4] + 0.5 * beta14_4) - expit(alphas[3] + 0.5 * beta13_4),
+         1 - expit(alphas[4] + 0.5 * beta14_4))
+# scenario 5: NP 2
+beta11_5 <- log(1.52)
+beta12_5 <- log(2.59)
+beta13_5 <- log(3.06)
+beta14_5 <- log(2.01)
+
+pc5 <- c(expit(alphas[1] - 0.5 * beta11_5), 
+         expit(alphas[2] - 0.5 * beta12_5) - expit(alphas[1] - 0.5 * beta11_5),
+         expit(alphas[3] - 0.5 * beta13_5) - expit(alphas[2] - 0.5 * beta12_5),
+         expit(alphas[4] - 0.5 * beta14_5) - expit(alphas[3] - 0.5 * beta13_5),
+         1 - expit(alphas[4] - 0.5 * beta14_5))
+pt5 <- c(expit(alphas[1] + 0.5 * beta11_5), 
+         expit(alphas[2] + 0.5 * beta12_5) - expit(alphas[1] + 0.5 * beta11_5),
+         expit(alphas[3] + 0.5 * beta13_5) - expit(alphas[2] + 0.5 * beta12_5),
+         expit(alphas[4] + 0.5 * beta14_5) - expit(alphas[3] + 0.5 * beta13_5),
+         1 - expit(alphas[4] + 0.5 * beta14_5))
+# scenario 6: NP 3
+beta11_6 <- log(1.43)
+beta12_6 <- log(2.59)
+beta13_6 <- log(1.21)
+beta14_6 <- log(1.34)
+
+pc6 <- c(expit(alphas[1] - 0.5 * beta11_6), 
+         expit(alphas[2] - 0.5 * beta12_6) - expit(alphas[1] - 0.5 * beta11_6),
+         expit(alphas[3] - 0.5 * beta13_6) - expit(alphas[2] - 0.5 * beta12_6),
+         expit(alphas[4] - 0.5 * beta14_6) - expit(alphas[3] - 0.5 * beta13_6),
+         1 - expit(alphas[4] - 0.5 * beta14_6))
+pt6 <- c(expit(alphas[1] + 0.5 * beta11_6), 
+         expit(alphas[2] + 0.5 * beta12_6) - expit(alphas[1] + 0.5 * beta11_6),
+         expit(alphas[3] + 0.5 * beta13_6) - expit(alphas[2] + 0.5 * beta12_6),
+         expit(alphas[4] + 0.5 * beta14_6) - expit(alphas[3] + 0.5 * beta13_6),
+         1 - expit(alphas[4] + 0.5 * beta14_6))
+# scenario 7: NP 4
+beta11_7 <- log(1.52)
+beta12_7 <- log(3) # 3.76
+beta13_7 <- log(3.25)
+beta14_7 <- log(4.03)
+pc7 <- c(expit(alphas[1] - 0.5 * beta11_7), 
+         expit(alphas[2] - 0.5 * beta12_7) - expit(alphas[1] - 0.5 * beta11_7),
+         expit(alphas[3] - 0.5 * beta13_7) - expit(alphas[2] - 0.5 * beta12_7),
+         expit(alphas[4] - 0.5 * beta14_7) - expit(alphas[3] - 0.5 * beta13_7),
+         1 - expit(alphas[4] - 0.5 * beta14_7))
+pt7 <- c(expit(alphas[1] + 0.5 * beta11_7), 
+         expit(alphas[2] + 0.5 * beta12_7) - expit(alphas[1] + 0.5 * beta11_7),
+         expit(alphas[3] + 0.5 * beta13_7) - expit(alphas[2] + 0.5 * beta12_7),
+         expit(alphas[4] + 0.5 * beta14_7) - expit(alphas[3] + 0.5 * beta13_7),
+         1 - expit(alphas[4] + 0.5 * beta14_7))
+
+# scenario 8 : NP 5 
+beta11_8 <- log(1.45)
+beta12_8 <- log(2.70)
+beta13_8 <- log(2.55)
+beta14_8 <- log(2.52)
+pc8 <- c(expit(alphas[1] - 0.5 * beta11_8), 
+         expit(alphas[2] - 0.5 * beta12_8) - expit(alphas[1] - 0.5 * beta11_8),
+         expit(alphas[3] - 0.5 * beta13_8) - expit(alphas[2] - 0.5 * beta12_8),
+         expit(alphas[4] - 0.5 * beta14_8) - expit(alphas[3] - 0.5 * beta13_8),
+         1 - expit(alphas[4] - 0.5 * beta14_8))
+pt8 <- c(expit(alphas[1] + 0.5 * beta11_8), 
+         expit(alphas[2] + 0.5 * beta12_8) - expit(alphas[1] + 0.5 * beta11_8),
+         expit(alphas[3] + 0.5 * beta13_8) - expit(alphas[2] + 0.5 * beta12_8),
+         expit(alphas[4] + 0.5 * beta14_8) - expit(alphas[3] + 0.5 * beta13_8),
+         1 - expit(alphas[4] + 0.5 * beta14_8))
+
+# scenario 9: NP 6 
+beta11_9 <- log(1.00)
+beta12_9 <- log(4.41)
+beta13_9 <- log(4.09)
+beta14_9 <- log(4.03)
+
+pc9 <- c(expit(alphas[1] - 0.5 * beta11_9), 
+         expit(alphas[2] - 0.5 * beta12_9) - expit(alphas[1] - 0.5 * beta11_9),
+         expit(alphas[3] - 0.5 * beta13_9) - expit(alphas[2] - 0.5 * beta12_9),
+         expit(alphas[4] - 0.5 * beta14_9) - expit(alphas[3] - 0.5 * beta13_9),
+         1 - expit(alphas[4] - 0.5 * beta14_9))
+pt9 <- c(expit(alphas[1] + 0.5 * beta11_9), 
+         expit(alphas[2] + 0.5 * beta12_9) - expit(alphas[1] + 0.5 * beta11_9),
+         expit(alphas[3] + 0.5 * beta13_9) - expit(alphas[2] + 0.5 * beta12_9),
+         expit(alphas[4] + 0.5 * beta14_9) - expit(alphas[3] + 0.5 * beta13_9),
+         1 - expit(alphas[4] + 0.5 * beta14_9))
+
+
+rd1 <- cumsum(pt1) - cumsum(pc1)
+rd2 <- cumsum(pt2) - cumsum(pc2)
+rd3 <- cumsum(pt3) - cumsum(pc3)
+rd4 <- cumsum(pt4) - cumsum(pc4)
+rd5 <- cumsum(pt5) - cumsum(pc5)
+rd6 <- cumsum(pt6) - cumsum(pc6)
+rd7 <- cumsum(pt7) - cumsum(pc7)
+rd8 <- cumsum(pt8) - cumsum(pc8)
+rd9 <- cumsum(pt9) - cumsum(pc9)
+
+risk_dif1 <- as.data.frame(rbind(rd1, rd2, rd3, rd4, rd5, rd6, rd7, rd8, rd9))
+colnames(risk_dif1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+risk_dif1$Scenario <- c("Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+scaleFUN <- function(x) sprintf("%.2f", x)
+
+p2 <- risk_dif1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"),
+               names_to = "Outcome", values_to = "RD") %>%
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2",
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = RD, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RD") +
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2),
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  + scale_y_continuous(labels=scaleFUN)  +
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14)) +
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3",
+                              "ED Visit" = "3|4",
+                              "Hopsitalization" = "4|5"))
+
+#c(brewer.pal(10, "Paired")[10], brewer.pal(8, "Paired")))
+
+
+rr1 <- cumsum(pt1) / cumsum(pc1)
+rr2 <- cumsum(pt2) / cumsum(pc2)
+rr3 <- cumsum(pt3) / cumsum(pc3)
+rr4 <- cumsum(pt4) / cumsum(pc4)
+rr5 <- cumsum(pt5) / cumsum(pc5)
+rr6 <- cumsum(pt6) / cumsum(pc6)
+rr7 <- cumsum(pt7) / cumsum(pc7)
+rr8 <- cumsum(pt8) / cumsum(pc8)
+rr9 <- cumsum(pt9) / cumsum(pc9)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <-c("Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+p3 <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"),
+               names_to = "Outcome", values_to = "RR") %>%
+  filter(Outcome != "Death")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2",
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") +
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2),
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  +
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14)) +
+  scale_x_discrete(labels = c("Nothing" = "\u2264 1",
+                              "Hypoxemia" = "\u2264 2",
+                              "ED Visit" = "\u2264 3",
+                              "Hopsitalization" = "\u2264 4"))
+
+#rr greater than or equal to
+rr1 <- revcumsum(pc1) / revcumsum(pt1)
+rr2 <- revcumsum(pc2) / revcumsum(pt2)
+rr3 <- revcumsum(pc3) / revcumsum(pt3)
+rr4 <- revcumsum(pc4) / revcumsum(pt4)
+rr5 <- revcumsum(pc5) / revcumsum(pt5)
+rr6 <- revcumsum(pc6) / revcumsum(pt6)
+rr7 <- revcumsum(pc7) / revcumsum(pt7)
+rr8 <- revcumsum(pc8) / revcumsum(pt8)
+rr9 <- revcumsum(pc9) / revcumsum(pt9)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO",
+                         "NP 1", "NP 2")
+
+p3ge <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"),
+               names_to = "Outcome", values_to = "RR") %>%
+  filter(Outcome != "Nothing")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Hypoxemia", "ED Visit", "Hopsitalization", "Death")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD",
+                                                "Low RR", "High RR",
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") +
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2),
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) +
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14)) +
+  scale_x_discrete(labels = c("Hypoxemia" = "\u2265 2",
+                              "ED Visit" = "\u2265 3",
+                              "Hopsitalization" = "\u2265 4",
+                              "Death" = "\u2265 5"))
+
+
+
+or1 <- (cumsum(pt1)/ (1- cumsum(pt1))) / (cumsum(pc1) / (1 - cumsum(pc1)))
+or2 <- (cumsum(pt2)/ (1- cumsum(pt2))) / (cumsum(pc2) / (1 - cumsum(pc2)))
+or3 <- (cumsum(pt3)/ (1- cumsum(pt3))) / (cumsum(pc3) / (1 - cumsum(pc3)))
+or4 <- (cumsum(pt4)/ (1- cumsum(pt4))) / (cumsum(pc4) / (1 - cumsum(pc4)))
+or5 <- (cumsum(pt5)/ (1- cumsum(pt5))) / (cumsum(pc5) / (1 - cumsum(pc5)))
+or6 <- (cumsum(pt6)/ (1- cumsum(pt6))) / (cumsum(pc6) / (1 - cumsum(pc6)))
+or7 <- (cumsum(pt7)/ (1- cumsum(pt7))) / (cumsum(pc7) / (1 - cumsum(pc7)))
+or8 <- (cumsum(pt8)/ (1- cumsum(pt8))) / (cumsum(pc8) / (1 - cumsum(pc8)))
+or9 <- (cumsum(pt9)/ (1- cumsum(pt9))) / (cumsum(pc9) / (1 - cumsum(pc9)))
+
+odds_ratio1 <- as.data.frame(rbind(or1, or2, or3, or4, or5, or6, or7, or8, or9))
+colnames(odds_ratio1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+odds_ratio1$Scenario <- c("Null", "Low PO", "High PO", "NP 1", "NP 2", 
+                          "NP 3", "NP 4", "NP 5", "NP 6")
+
+p4 <- odds_ratio1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "OR") %>% 
+  filter(Outcome != "Death")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2", 
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = OR, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative OR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5"))
+
+
+legend <- get_legend(
+  # create some space to the left of the legend
+  p2 + theme(legend.key.size=unit(2.5,"lines")))
+
+library(cowplot)
+plots <- plot_grid(p4+ theme(legend.position="none"), p2+ theme(legend.position="none"),
+                   p3+ theme(legend.position="none"),
+                   p3ge + theme(legend.position = "none"), labels = c("A", "B", "C", "D"))
+
+plot_grid(plots, legend, rel_widths = c(3, 0.5))
+
+#correct plot to save
+#ggsave("covid_out_scenarios_040725.png", height = 8, width = 8, dpi = 600)
+
+
+# plot to save for supplement showing distributions 
+
+# plots <- plot_grid(p1_even + theme(legend.position = "none"), p1+ theme(legend.position = "none"),
+#           labels = c("A", "B"))
+# legend <- get_legend(
+#   # create some space to the left of the legend
+#   p1_even)
+# plot_grid(plots, legend, rel_widths = c(3, 0.5))
+
+#ggsave("scenario_distributions_040725.png", height = 6, width = 9, dpi = 600)
+
+
+
+scenarios1 <- as.data.frame(rbind(pc1, pt1, pc2, pt2, pc3, pt3, pc4, pt4,
+                                  pc5, pt5, pc6, pt6, pc7, pt7, pc8, pt8, 
+                                  pc9, pt9))
+colnames(scenarios1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+# scenarios1$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4", "Low PO", "High PO", 
+#                          "NP 5", "NP 6")
+
+# check standardized effect size for scenarios
+wOR_100_75_50_25_0 <- NA
+mean_utility_100_75_50_25_0 <- NA
+wOR_100_90_60_10_0 <- NA
+mean_utility_100_90_60_10_0 <- NA
+wOR_100_90_80_60_0 <- NA
+mean_utility_100_90_80_60_0 <- NA
+NB <- NA
+true_ORs <- matrix(nrow = 9, ncol = 5)
+true_RRs <- matrix(nrow = 9, ncol = 5)
+true_power_100_75_50_25_0 <- NA
+true_power_100_90_60_10_0 <- NA
+true_power_100_90_80_60_0 <- NA
+true_power2_100_75_50_25_0 <- NA
+true_power2_100_90_60_10_0 <- NA
+true_power2_100_90_80_60_0 <- NA
+
+for (i in 1:(nrow(scenarios1)/2)) {
+  pc <- as.numeric(scenarios1[2*i - 1, 1:5])
+  pt <- as.numeric(scenarios1[2*i, 1:5])
+  PPO_ctl_leq <- cumsum(pc)
+  PPO_trt_leq <- cumsum(pt)
+  PPO_ctl_geq <- revcumsum(pc)
+  PPO_trt_geq <- revcumsum(pt)
+  p_y_ctl <- pc
+  p_y_trt <- pt
+
+  c <- 5
+  j <- 1:(c-1)
+  k <- 2:c
+
+#   numerator <- sum(p_y_ctl[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#     sum(p_y_ctl[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARD[i-1] <- numerator/denominator
+#   weighted_RD_effect[i] <- CARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_control_PPO[which(results_all$scenario == (i-1))])))
+# 
+# p_y <- (p_y_ctl + p_y_trt)/2
+# numerator <- sum(p_y[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#   sum(p_y[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OARD[i-1] <- numerator/denominator
+# 
+# weighted_RD_effect_overall[i] <- OARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_overall_PPO[which(results_all$scenario == (i-1))])))
+
+
+OR_le <- (PPO_trt_leq / (1- PPO_trt_leq)) / (PPO_ctl_leq / (1- PPO_ctl_leq))
+OR_ge <- (PPO_ctl_geq / (1- PPO_ctl_geq)) / (PPO_trt_geq / (1- PPO_trt_geq))
+
+true_ORs[i,] <- OR_le
+# # calculate RR 
+  log_RR_le <- log(PPO_trt_leq/PPO_ctl_leq)
+  
+true_RRs[i,] <- log_RR_le
+#   log_RR_ge <- log(PPO_ctl_geq/PPO_trt_geq)
+utility <- c(100, 75, 50, 25, 0)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_75_50_25_0[i] <- exp(numerator/denominator)
+
+# true power 
+true_power_100_75_50_25_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_75_50_25_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+l <- 1:5
+mean_utility_100_75_50_25_0[i] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+utility <- c(100, 90, 60, 10, 0)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_60_10_0[i] <- exp(numerator/denominator)
+
+mean_utility_100_90_60_10_0[i] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_60_10_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_60_10_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+utility <- c(100, 90, 80, 60, 0)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_80_60_0[i] <- exp(numerator/denominator)
+
+mean_utility_100_90_80_60_0[i] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_80_60_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_80_60_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+# true net benefit 
+NB[i] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+
+
+# weighted_log_OR_effect_control[i] <- weighted_OR_control[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_control_PPO[which(results_all$scenario == (i-1))])))
+
+# #calculate weighted log OR using control probability as weights
+# numerator <- sum(p_y_ctl[j] * log(OR_le[j])) + 
+#   sum(p_y_ctl[k] * log(OR_ge[k]))
+# denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+# CAOR[i-1] <- numerator/denominator
+# 
+# #calculate weighted OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# weighted_OR_overall[i-1] <- (numerator/denominator)
+# weighted_log_OR_effect_overall[i] <- weighted_OR_overall[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_overall_PPO[which(results_all$scenario == (i-1))])))
+# 
+# #calculate weighted log OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OAOR[i-1] <- numerator/denominator
+# 
+#  # calculate weighted RR with control probabilities 
+#   numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * log_RR_le[j])
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect[i] <- CARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_control_PPO[which(results_all$scenario == (i-1))])))
+#   
+#   # calculate weighted RR with overall probabilities 
+#   numerator <- sum((p_y[j] + p_y[k]) * log_RR_le[j])
+#   denominator <- sum(p_y[j]) + sum(p_y[k])
+#   OARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect_overall[i] <- OARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_overall_PPO[which(results_all$scenario == (i-1))])))
+#   
+# 
+# NB[i-1] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+}
+
+# weighted_RD_control/sqrt(var(as.numeric(results_all$weighted_RD_control_PPO)))
+# 
+# weighted_RD8/sqrt(var(as.numeric(results18$weighted_RD_control_PPO)))
+# 
+# weighted_RD_overall8/sqrt(var(as.numeric(results18$weighted_RD_overall_PPO)))
+# 
+# weighted_OR8/sqrt(var(as.numeric(results18$weighted_OR_control_PPO)))
+# 
+# weighted_OR_overall8/sqrt(var(as.numeric(results18$weighted_OR_overall_PPO)))
+# 
+# 
+#cbind(scenarios1$Scenario[2:10], round(wOR_100_75_50_25_0, 3), round(wOR_100_90_60_10_0, 3), round(wOR_100_90_80_60_0, 3))
+
+# tab1 <- results_all_extra %>% group_by(Scenario) %>% 
+#   dplyr::summarize(rd_control = round(mean(as.numeric(weighted_RD_control_PPO)), 3),
+#             rd_overall = round(mean(as.numeric(weighted_RD_overall_PPO)), 3),
+#             or_control = round(mean(as.numeric(weighted_OR_control_PPO)), 3),
+#             or_overall = round(mean(as.numeric(weighted_OR_overall_PPO)), 3),
+#             or_PO = round(mean(as.numeric(OR_PO)), 3))
+
+true_vals <- as.data.frame(cbind(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0, 
+                                 mean_utility_100_75_50_25_0, mean_utility_100_90_60_10_0, 
+                                 mean_utility_100_90_80_60_0, NB))
+true_vals$Scenario <- c("Null", "Low PO", "High PO", "NP 1", "NP 2",
+                        "NP 3", "NP 4", "NP 5", "NP 6")
+colnames(true_vals) <- c("true_wOR_100_75_50_25_0", "true_wOR_100_90_60_10_0", "true_wOR_100_90_80_60_0",
+                         "true_mean_utility_100_75_50_25_0", "true_mean_utility_100_90_60_10_0",
+                         "true_mean_utility_100_90_80_60_0", "true_NB", "Scenario")
+
+# true_vals_long <- true_vals %>% 
+#   pivot_longer(cols = c(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0), 
+#                names_to = "method", values_to = "True")
+
+
+
+true_ORs <- as.data.frame(true_ORs[, -5])
+colnames(true_ORs) <- c("true_OR1", "true_OR2", "true_OR3", "true_OR4")
+true_ORs$Scenario <- c("Null", "Low PO", "High PO", "NP 1", "NP 2",
+                        "NP 3", "NP 4", "NP 5", "NP 6")
+
+```
+
+```{r, echo = F}
+covid_scenarios <- sim_results %>%
+  mutate(Scenario = as.factor(case_when(array %in% 1:40 ~ "Null",
+                              array %in% 41:80 ~ "Low PO", 
+                              array %in% 81:120 ~ "High PO",
+                              array %in% 121:160 ~ "NP 1", 
+                              array %in% 161:200 ~ "NP 2",
+                              array %in% 201:240 ~ "NP 3", 
+                              array %in% 241:280 ~ "NP 4",
+                              array %in% 281:320 ~ "NP 5", 
+                              array %in% 321:360 ~ "NP 6")))
+
+covid_scenarios$Scenario <- factor(covid_scenarios$Scenario, levels = c("Null", "Low PO", "High PO",
+                                                                "NP 1", "NP 2",
+                                                                "NP 3", "NP 4", "NP 5",
+                                                                "NP 6"))
+
+
+
+adj_vs_unadj_table <- covid_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_OR1 = log_OR1_100_75_50_25_0 - log(true_OR1),
+         bias_OR1unadj = log_OR1_100_75_50_25_0unadj - log(true_OR1),
+         bias_OR2 = log_OR2_100_75_50_25_0 - log(true_OR2),
+         bias_OR2unadj = log_OR2_100_75_50_25_0unadj - log(true_OR2),
+         bias_OR3 = log_OR3_100_75_50_25_0 - log(true_OR3),
+         bias_OR3unadj = log_OR3_100_75_50_25_0unadj - log(true_OR3),
+         bias_OR4 = log_OR4_100_75_50_25_0 - log(true_OR4),
+         bias_OR4unadj = log_OR4_100_75_50_25_0unadj - log(true_OR4),
+         bias_wOR_100_75_50_25_0 = log_weighted_OR_both_100_75_50_25_0 - log(true_wOR_100_75_50_25_0),
+         bias_wOR_100_75_50_25_0unadj = weighted_log_OR_both_100_75_50_25_0unadj - log(true_wOR_100_75_50_25_0), 
+         CIwidth_OR1 = log_OR_95CI2_100_75_50_25_0 - log_OR_95CI1_100_75_50_25_0,
+         CIwidth_OR1unadj = log_OR_CI2_100_75_50_25_0unadj - log_OR_CI1_100_75_50_25_0unadj,
+         CIwidth_OR2 = log_OR_95CI4_100_75_50_25_0 - log_OR_95CI3_100_75_50_25_0,
+         CIwidth_OR2unadj = log_OR_CI4_100_75_50_25_0unadj - log_OR_CI3_100_75_50_25_0unadj,
+         CIwidth_OR3 = log_OR_95CI6_100_75_50_25_0 - log_OR_95CI5_100_75_50_25_0,
+         CIwidth_OR3unadj = log_OR_CI6_100_75_50_25_0unadj - log_OR_CI5_100_75_50_25_0unadj,
+         CIwidth_OR4 = log_OR_95CI8_100_75_50_25_0 - log_OR_95CI7_100_75_50_25_0,
+         CIwidth_OR4unadj = log_OR_CI8_100_75_50_25_0unadj - log_OR_CI7_100_75_50_25_0unadj,
+         CI_width_wOR = `log_wOR_both_95CI.97.5%_100_75_50_25_0` -
+           `log_wOR_both_95CI.2.5%_100_75_50_25_0`,
+         CI_width_wOR_unadj = `weighted_log_OR_both_CI.97.5%_100_75_50_25_0unadj` -
+           `weighted_log_OR_both_CI.2.5%_100_75_50_25_0unadj`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            OR1_adj_RMSE = sqrt(sum(bias_OR1^2) / sum(!is.na(bias_OR1))),
+            OR1_unadj_RMSE = sqrt(sum(bias_OR1unadj^2) / sum(!is.na(bias_OR1unadj))),
+            OR2_adj_RMSE = sqrt(sum(bias_OR2^2) / sum(!is.na(bias_OR2))),
+            OR2_unadj_RMSE = sqrt(sum(bias_OR2unadj^2) / sum(!is.na(bias_OR2unadj))),
+            OR3_adj_RMSE = sqrt(sum(bias_OR3^2) / sum(!is.na(bias_OR3))),
+            OR3_unadj_RMSE = sqrt(sum(bias_OR3unadj^2) / sum(!is.na(bias_OR3unadj))),
+            OR4_adj_RMSE = sqrt(sum(bias_OR4^2) / sum(!is.na(bias_OR4))),
+            OR4_unadj_RMSE = sqrt(sum(bias_OR4unadj^2) / sum(!is.na(bias_OR4unadj))),
+            wOR_adj_RMSE = sqrt(sum(bias_wOR_100_75_50_25_0^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+            wOR_unadj_RMSE = sqrt(sum(bias_wOR_100_75_50_25_0unadj^2) / sum(!is.na(bias_wOR_100_75_50_25_0unadj))),
+            OR1_adj_Power = sum((log_OR_95CI1_100_75_50_25_0 > 0 & 
+                          log_OR_95CI2_100_75_50_25_0 > 0) |
+                            (log_OR_95CI1_100_75_50_25_0 < 0 &
+                          log_OR_95CI2_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_75_50_25_0)),
+            OR2_adj_Power = sum((log_OR_95CI3_100_75_50_25_0 > 0 & 
+                          log_OR_95CI4_100_75_50_25_0 > 0) |
+                            (log_OR_95CI3_100_75_50_25_0 < 0 &
+                          log_OR_95CI4_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_75_50_25_0)),
+            OR3_adj_Power = sum((log_OR_95CI5_100_75_50_25_0 > 0 & 
+                          log_OR_95CI6_100_75_50_25_0 > 0) |
+                            (log_OR_95CI5_100_75_50_25_0 < 0 &
+                          log_OR_95CI6_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_75_50_25_0)),
+            OR4_adj_Power = sum((log_OR_95CI7_100_75_50_25_0 > 0 & 
+                          log_OR_95CI8_100_75_50_25_0 > 0) |
+                            (log_OR_95CI7_100_75_50_25_0 < 0 &
+                          log_OR_95CI8_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_75_50_25_0)),
+            wOR_adj_Power = sum((`log_wOR_both_95CI.2.5%_100_75_50_25_0` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_75_50_25_0` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_75_50_25_0`)),
+            OR1_unadj_Power = sum((log_OR_CI1_100_75_50_25_0unadj > 0 & 
+                          log_OR_CI2_100_75_50_25_0unadj > 0) |
+                            (log_OR_CI1_100_75_50_25_0unadj < 0 &
+                          log_OR_CI2_100_75_50_25_0unadj < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_75_50_25_0unadj)),
+            OR2_unadj_Power = sum((log_OR_CI3_100_75_50_25_0unadj > 0 & 
+                          log_OR_CI4_100_75_50_25_0unadj > 0) |
+                            (log_OR_CI3_100_75_50_25_0unadj < 0 &
+                          log_OR_CI4_100_75_50_25_0unadj < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_75_50_25_0unadj)),
+            OR3_unadj_Power = sum((log_OR_CI5_100_75_50_25_0unadj > 0 & 
+                          log_OR_CI6_100_75_50_25_0unadj > 0) |
+                            (log_OR_CI5_100_75_50_25_0unadj < 0 &
+                          log_OR_CI6_100_75_50_25_0unadj < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_75_50_25_0unadj)),
+            OR4_unadj_Power = sum((log_OR_CI7_100_75_50_25_0unadj > 0 & 
+                          log_OR_CI8_100_75_50_25_0unadj > 0) |
+                            (log_OR_CI7_100_75_50_25_0unadj < 0 &
+                          log_OR_CI8_100_75_50_25_0unadj < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_75_50_25_0unadj)),
+            wOR_unadj_Power = sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0unadj` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0unadj` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0unadj` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0unadj` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0unadj`)), 
+            OR1_adj_CIwidth = mean(CIwidth_OR1),
+            OR1_unadj_CIwidth = mean(CIwidth_OR1unadj),
+            OR2_adj_CIwidth = mean(CIwidth_OR2),
+            OR2_unadj_CIwidth = mean(CIwidth_OR2unadj),
+            OR3_adj_CIwidth = mean(CIwidth_OR3),
+            OR3_unadj_CIwidth = mean(CIwidth_OR3unadj),
+            OR4_adj_CIwidth = mean(CIwidth_OR4),
+            OR4_unadj_CIwidth = mean(CIwidth_OR4unadj),
+            wOR_adj_CIwidth = mean(CI_width_wOR),
+            wOR_unadj_CIwidth = mean(CI_width_wOR_unadj)) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Model", "Measure")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) 
+
+adj_vs_unadj_table %>% filter(Summary == "wOR") %>%
+  kable(caption = "Stratified Model Unadjusted vs Adjusted Simulation", 
+      booktabs = T, align = "c", digits = 2, linesep = "") 
+
+adj_vs_unadj_table %>% filter(Summary != "wOR") %>%
+  kable(caption = "Stratified Model Unadjusted vs Adjusted Simulation", 
+      booktabs = T, align = "c", digits = 2, linesep = "") 
+```
+
+
+```{r, echo = F}
+# make table for stratified vs blrm 
+strat_vs_blrm_table <- covid_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_OR1 = log_OR1_100_75_50_25_0 - log(true_OR1),
+         bias_OR1blrm = log_OR1_100_75_50_25_0blrm - log(true_OR1),
+         bias_OR2 = log_OR2_100_75_50_25_0 - log(true_OR2),
+         bias_OR2blrm = log_OR2_100_75_50_25_0blrm - log(true_OR2),
+         bias_OR3 = log_OR3_100_75_50_25_0 - log(true_OR3),
+         bias_OR3blrm = log_OR3_100_75_50_25_0blrm - log(true_OR3),
+         bias_OR4 = log_OR4_100_75_50_25_0 - log(true_OR4),
+         bias_OR4blrm = log_OR4_100_75_50_25_0blrm - log(true_OR4),
+         bias_wOR_100_75_50_25_0 = log_weighted_OR_both_100_75_50_25_0 - log(true_wOR_100_75_50_25_0),
+         bias_wOR_100_75_50_25_0blrm = log_weighted_OR_both_100_75_50_25_0blrm - log(true_wOR_100_75_50_25_0), 
+         CIwidth_OR1 = log_OR_95CI2_100_75_50_25_0 - log_OR_95CI1_100_75_50_25_0,
+         CIwidth_OR1blrm = log_OR_95CI2_100_75_50_25_0blrm - log_OR_95CI1_100_75_50_25_0blrm,
+         CIwidth_OR2 = log_OR_95CI4_100_75_50_25_0 - log_OR_95CI3_100_75_50_25_0,
+         CIwidth_OR2blrm = log_OR_95CI4_100_75_50_25_0blrm - log_OR_95CI3_100_75_50_25_0blrm,
+         CIwidth_OR3 = log_OR_95CI6_100_75_50_25_0 - log_OR_95CI5_100_75_50_25_0,
+         CIwidth_OR3blrm = log_OR_95CI6_100_75_50_25_0blrm - log_OR_95CI5_100_75_50_25_0blrm,
+         CIwidth_OR4 = log_OR_95CI8_100_75_50_25_0 - log_OR_95CI7_100_75_50_25_0,
+         CIwidth_OR4blrm = log_OR_95CI8_100_75_50_25_0blrm - log_OR_95CI7_100_75_50_25_0blrm,
+         CI_width_wOR = `log_wOR_both_95CI.97.5%_100_75_50_25_0` -
+           `log_wOR_both_95CI.2.5%_100_75_50_25_0`,
+         CI_width_wOR_blrm = `log_wOR_both_95CI.97.5%_100_75_50_25_0blrm` -
+           `log_wOR_both_95CI.2.5%_100_75_50_25_0blrm`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            OR1_stratified_RMSE = sqrt(sum(bias_OR1^2) / sum(!is.na(bias_OR1))),
+            OR1_blrm_RMSE = sqrt(sum(bias_OR1blrm^2) / sum(!is.na(bias_OR1blrm))),
+            OR2_stratified_RMSE = sqrt(sum(bias_OR2^2) / sum(!is.na(bias_OR2))),
+            OR2_blrm_RMSE = sqrt(sum(bias_OR2blrm^2) / sum(!is.na(bias_OR2blrm))),
+            OR3_stratified_RMSE = sqrt(sum(bias_OR3^2) / sum(!is.na(bias_OR3))),
+            OR3_blrm_RMSE = sqrt(sum(bias_OR3blrm^2) / sum(!is.na(bias_OR3blrm))),
+            OR4_stratified_RMSE = sqrt(sum(bias_OR4^2) / sum(!is.na(bias_OR4))),
+            OR4_blrm_RMSE = sqrt(sum(bias_OR4blrm^2) / sum(!is.na(bias_OR4blrm))),
+            wOR_stratified_RMSE = sqrt(sum(bias_wOR_100_75_50_25_0^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+            wOR_blrm_RMSE = sqrt(sum(bias_wOR_100_75_50_25_0blrm^2) / sum(!is.na(bias_wOR_100_75_50_25_0blrm))),
+            OR1_stratified_Power = sum((log_OR_95CI1_100_75_50_25_0 > 0 & 
+                          log_OR_95CI2_100_75_50_25_0 > 0) |
+                            (log_OR_95CI1_100_75_50_25_0 < 0 &
+                          log_OR_95CI2_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_75_50_25_0)),
+            OR2_stratified_Power = sum((log_OR_95CI3_100_75_50_25_0 > 0 & 
+                          log_OR_95CI4_100_75_50_25_0 > 0) |
+                            (log_OR_95CI3_100_75_50_25_0 < 0 &
+                          log_OR_95CI4_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_75_50_25_0)),
+            OR3_stratified_Power = sum((log_OR_95CI5_100_75_50_25_0 > 0 & 
+                          log_OR_95CI6_100_75_50_25_0 > 0) |
+                            (log_OR_95CI5_100_75_50_25_0 < 0 &
+                          log_OR_95CI6_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_75_50_25_0)),
+            OR4_stratified_Power = sum((log_OR_95CI7_100_75_50_25_0 > 0 & 
+                          log_OR_95CI8_100_75_50_25_0 > 0) |
+                            (log_OR_95CI7_100_75_50_25_0 < 0 &
+                          log_OR_95CI8_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_75_50_25_0)),
+            wOR_stratified_Power = sum((`log_wOR_both_95CI.2.5%_100_75_50_25_0` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_75_50_25_0` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_75_50_25_0`)),
+            OR1_blrm_Power = sum((log_OR_95CI1_100_75_50_25_0blrm > 0 & 
+                          log_OR_95CI2_100_75_50_25_0blrm > 0) |
+                            (log_OR_95CI1_100_75_50_25_0blrm < 0 &
+                          log_OR_95CI2_100_75_50_25_0blrm < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_75_50_25_0blrm)),
+            OR2_blrm_Power = sum((log_OR_95CI3_100_75_50_25_0blrm > 0 & 
+                          log_OR_95CI4_100_75_50_25_0blrm > 0) |
+                            (log_OR_95CI3_100_75_50_25_0blrm < 0 &
+                          log_OR_95CI4_100_75_50_25_0blrm < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_75_50_25_0blrm)),
+            OR3_blrm_Power = sum((log_OR_95CI5_100_75_50_25_0blrm > 0 & 
+                          log_OR_95CI6_100_75_50_25_0blrm > 0) |
+                            (log_OR_95CI5_100_75_50_25_0blrm < 0 &
+                          log_OR_95CI6_100_75_50_25_0blrm < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_75_50_25_0blrm)),
+            OR4_blrm_Power = sum((log_OR_95CI7_100_75_50_25_0blrm > 0 & 
+                          log_OR_95CI8_100_75_50_25_0blrm > 0) |
+                            (log_OR_95CI7_100_75_50_25_0blrm < 0 &
+                          log_OR_95CI8_100_75_50_25_0blrm < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_75_50_25_0blrm)),
+            wOR_blrm_Power = sum((`log_wOR_both_95CI.2.5%_100_75_50_25_0blrm` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0blrm` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_75_50_25_0blrm` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0blrm` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_75_50_25_0blrm`)),
+            OR1_stratified_CIwidth = mean(CIwidth_OR1),
+            OR1_blrm_CIwidth = mean(CIwidth_OR1blrm),
+            OR2_stratified_CIwidth = mean(CIwidth_OR2),
+            OR2_blrm_CIwidth = mean(CIwidth_OR2blrm),
+            OR3_stratified_CIwidth = mean(CIwidth_OR3),
+            OR3_blrm_CIwidth = mean(CIwidth_OR3blrm),
+            OR4_stratified_CIwidth = mean(CIwidth_OR4),
+            OR4_blrm_CIwidth = mean(CIwidth_OR4blrm),
+            wOR_stratified_CIwidth = mean(CI_width_wOR),
+            wOR_blrm_CIwidth = mean(CI_width_wOR_blrm)) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Model", "Measure")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) 
+  
+strat_vs_blrm_table %>% filter(Summary == "wOR") %>%
+  kable(caption = "Stratified Model vs Blrm Model Adjusted Simulation", 
+      booktabs = T, align = "c", digits = 2, linesep = "") 
+
+strat_vs_blrm_table %>% filter(Summary != "wOR") %>%
+  kable(caption = "Stratified Model vs Blrm Model Adjusted Simulation", 
+      booktabs = T, align = "c", digits = 2, linesep = "") 
+```
+
+
+
+
+
+```{r, echo = F}
+# make table for three different Utilities
+util_table <- covid_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_OR1_util1 = log_OR1_100_75_50_25_0 - log(true_OR1),
+         bias_OR2_util1 = log_OR2_100_75_50_25_0 - log(true_OR2),
+         bias_OR3_util1 = log_OR3_100_75_50_25_0 - log(true_OR3),
+         bias_OR4_util1 = log_OR4_100_75_50_25_0 - log(true_OR4),
+         bias_OR1_util2 = log_OR1_100_90_80_60_0 - log(true_OR1),
+         bias_OR2_util2 = log_OR2_100_90_80_60_0 - log(true_OR2),
+         bias_OR3_util2 = log_OR3_100_90_80_60_0 - log(true_OR3),
+         bias_OR4_util2 = log_OR4_100_90_80_60_0 - log(true_OR4),
+         bias_OR1_util3 = log_OR1_100_90_60_10_0 - log(true_OR1),
+         bias_OR2_util3 = log_OR2_100_90_60_10_0 - log(true_OR2),
+         bias_OR3_util3 = log_OR3_100_90_60_10_0 - log(true_OR3),
+         bias_OR4_util3 = log_OR4_100_90_60_10_0 - log(true_OR4),
+         bias_wOR_util1 = log_weighted_OR_both_100_75_50_25_0 - log(true_wOR_100_75_50_25_0),
+         bias_wOR_util2 = log_weighted_OR_both_100_90_80_60_0 - log(true_wOR_100_90_80_60_0),
+         bias_wOR_util3 = log_weighted_OR_both_100_90_60_10_0 - log(true_wOR_100_90_60_10_0),
+         CIwidth_OR1_util1 = log_OR_95CI2_100_75_50_25_0 - log_OR_95CI1_100_75_50_25_0,
+         CIwidth_OR2_util1 = log_OR_95CI4_100_75_50_25_0 - log_OR_95CI3_100_75_50_25_0,
+         CIwidth_OR3_util1 = log_OR_95CI6_100_75_50_25_0 - log_OR_95CI5_100_75_50_25_0,
+         CIwidth_OR4_util1 = log_OR_95CI8_100_75_50_25_0 - log_OR_95CI7_100_75_50_25_0,
+         CI_width_wOR_util1 = `log_wOR_both_95CI.97.5%_100_75_50_25_0` -
+           `log_wOR_both_95CI.2.5%_100_75_50_25_0`,
+         CIwidth_OR1_util2 = log_OR_95CI2_100_90_80_60_0 - log_OR_95CI1_100_90_80_60_0,
+         CIwidth_OR2_util2 = log_OR_95CI4_100_90_80_60_0 - log_OR_95CI3_100_90_80_60_0,
+         CIwidth_OR3_util2 = log_OR_95CI6_100_90_80_60_0 - log_OR_95CI5_100_90_80_60_0,
+         CIwidth_OR4_util2 = log_OR_95CI8_100_90_80_60_0 - log_OR_95CI7_100_90_80_60_0,
+         CI_width_wOR_util2 = `log_wOR_both_95CI.97.5%_100_90_80_60_0` -
+           `log_wOR_both_95CI.2.5%_100_90_80_60_0`,
+         CIwidth_OR1_util3 = log_OR_95CI2_100_90_60_10_0 - log_OR_95CI1_100_90_60_10_0,
+         CIwidth_OR2_util3 = log_OR_95CI4_100_90_60_10_0 - log_OR_95CI3_100_90_60_10_0,
+         CIwidth_OR3_util3 = log_OR_95CI6_100_90_60_10_0 - log_OR_95CI5_100_90_60_10_0,
+         CIwidth_OR4_util3 = log_OR_95CI8_100_90_60_10_0 - log_OR_95CI7_100_90_60_10_0,
+         CI_width_wOR_util3 = `log_wOR_both_95CI.97.5%_100_90_60_10_0` -
+           `log_wOR_both_95CI.2.5%_100_90_60_10_0`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            OR1_util1_RMSE = sqrt(sum(bias_OR1_util1^2) / sum(!is.na(bias_OR1_util1))),
+            OR2_util1_RMSE = sqrt(sum(bias_OR2_util1^2) / sum(!is.na(bias_OR2_util1))),
+            OR3_util1_RMSE = sqrt(sum(bias_OR3_util1^2) / sum(!is.na(bias_OR3_util1))),
+            OR4_util1_RMSE = sqrt(sum(bias_OR4_util1^2) / sum(!is.na(bias_OR4_util1))),
+            wOR_util1_RMSE = sqrt(sum(bias_wOR_util1^2) / sum(!is.na(bias_wOR_util1))),
+            OR1_util1_Power = sum((log_OR_95CI1_100_75_50_25_0 > 0 & 
+                          log_OR_95CI2_100_75_50_25_0 > 0) |
+                            (log_OR_95CI1_100_75_50_25_0 < 0 &
+                          log_OR_95CI2_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_75_50_25_0)),
+            OR2_util1_Power = sum((log_OR_95CI3_100_75_50_25_0 > 0 & 
+                          log_OR_95CI4_100_75_50_25_0 > 0) |
+                            (log_OR_95CI3_100_75_50_25_0 < 0 &
+                          log_OR_95CI4_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_75_50_25_0)),
+            OR3_util1_Power = sum((log_OR_95CI5_100_75_50_25_0 > 0 & 
+                          log_OR_95CI6_100_75_50_25_0 > 0) |
+                            (log_OR_95CI5_100_75_50_25_0 < 0 &
+                          log_OR_95CI6_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_75_50_25_0)),
+            OR4_util1_Power = sum((log_OR_95CI7_100_75_50_25_0 > 0 & 
+                          log_OR_95CI8_100_75_50_25_0 > 0) |
+                            (log_OR_95CI7_100_75_50_25_0 < 0 &
+                          log_OR_95CI8_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_75_50_25_0)),
+            wOR_util1_Power = sum((`log_wOR_both_95CI.2.5%_100_75_50_25_0` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_75_50_25_0` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_75_50_25_0`)),
+            OR1_util1_CIwidth = mean(CIwidth_OR1_util1),
+            OR2_util1_CIwidth = mean(CIwidth_OR2_util1),
+            OR3_util1_CIwidth = mean(CIwidth_OR3_util1),
+            OR4_util1_CIwidth = mean(CIwidth_OR4_util1),
+            wOR_util1_CIwidth = mean(CI_width_wOR_util1),
+            OR1_util2_RMSE = sqrt(sum(bias_OR1_util2^2) / sum(!is.na(bias_OR1_util2))),
+            OR2_util2_RMSE = sqrt(sum(bias_OR2_util2^2) / sum(!is.na(bias_OR2_util2))),
+            OR3_util2_RMSE = sqrt(sum(bias_OR3_util2^2) / sum(!is.na(bias_OR3_util2))),
+            OR4_util2_RMSE = sqrt(sum(bias_OR4_util2^2) / sum(!is.na(bias_OR4_util2))),
+            wOR_util2_RMSE = sqrt(sum(bias_wOR_util2^2) / sum(!is.na(bias_wOR_util2))),
+            OR1_util2_Power = sum((log_OR_95CI1_100_90_80_60_0 > 0 & 
+                          log_OR_95CI2_100_90_80_60_0 > 0) |
+                            (log_OR_95CI1_100_90_80_60_0 < 0 &
+                          log_OR_95CI2_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_90_80_60_0)),
+            OR2_util2_Power = sum((log_OR_95CI3_100_90_80_60_0 > 0 & 
+                          log_OR_95CI4_100_90_80_60_0 > 0) |
+                            (log_OR_95CI3_100_90_80_60_0 < 0 &
+                          log_OR_95CI4_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_90_80_60_0)),
+            OR3_util2_Power = sum((log_OR_95CI5_100_90_80_60_0 > 0 & 
+                          log_OR_95CI6_100_90_80_60_0 > 0) |
+                            (log_OR_95CI5_100_90_80_60_0 < 0 &
+                          log_OR_95CI6_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_90_80_60_0)),
+            OR4_util2_Power = sum((log_OR_95CI7_100_90_80_60_0 > 0 & 
+                          log_OR_95CI8_100_90_80_60_0 > 0) |
+                            (log_OR_95CI7_100_90_80_60_0 < 0 &
+                          log_OR_95CI8_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_90_80_60_0)),
+            wOR_util2_Power = sum((`log_wOR_both_95CI.2.5%_100_90_80_60_0` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_90_80_60_0` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_90_80_60_0` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_90_80_60_0`)),
+            OR1_util2_CIwidth = mean(CIwidth_OR1_util2),
+            OR2_util2_CIwidth = mean(CIwidth_OR2_util2),
+            OR3_util2_CIwidth = mean(CIwidth_OR3_util2),
+            OR4_util2_CIwidth = mean(CIwidth_OR4_util2),
+            wOR_util2_CIwidth = mean(CI_width_wOR_util2),
+            OR1_util3_RMSE = sqrt(sum(bias_OR1_util3^2) / sum(!is.na(bias_OR1_util3))),
+            OR2_util3_RMSE = sqrt(sum(bias_OR2_util3^2) / sum(!is.na(bias_OR2_util3))),
+            OR3_util3_RMSE = sqrt(sum(bias_OR3_util3^2) / sum(!is.na(bias_OR3_util3))),
+            OR4_util3_RMSE = sqrt(sum(bias_OR4_util3^2) / sum(!is.na(bias_OR4_util3))),
+            wOR_util3_RMSE = sqrt(sum(bias_wOR_util3^2) / sum(!is.na(bias_wOR_util3))),
+            OR1_util3_Power = sum((log_OR_95CI1_100_90_60_10_0 > 0 & 
+                          log_OR_95CI2_100_90_60_10_0 > 0) |
+                            (log_OR_95CI1_100_90_60_10_0 < 0 &
+                          log_OR_95CI2_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI1_100_90_60_10_0)),
+            OR2_util3_Power = sum((log_OR_95CI3_100_90_60_10_0 > 0 & 
+                          log_OR_95CI4_100_90_60_10_0 > 0) |
+                            (log_OR_95CI3_100_90_60_10_0 < 0 &
+                          log_OR_95CI4_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI3_100_90_60_10_0)),
+            OR3_util3_Power = sum((log_OR_95CI5_100_90_60_10_0 > 0 & 
+                          log_OR_95CI6_100_90_60_10_0 > 0) |
+                            (log_OR_95CI5_100_90_60_10_0 < 0 &
+                          log_OR_95CI6_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI5_100_90_60_10_0)),
+            OR4_util3_Power = sum((log_OR_95CI7_100_90_60_10_0 > 0 & 
+                          log_OR_95CI8_100_90_60_10_0 > 0) |
+                            (log_OR_95CI7_100_90_60_10_0 < 0 &
+                          log_OR_95CI8_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_95CI7_100_90_60_10_0)),
+            wOR_util3_Power = sum((`log_wOR_both_95CI.2.5%_100_90_60_10_0` > 0 & 
+                          `log_wOR_both_95CI.97.5%_100_90_60_10_0` > 0) |
+                            (`log_wOR_both_95CI.2.5%_100_90_60_10_0` < 0 &
+                          `log_wOR_both_95CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`log_wOR_both_95CI.2.5%_100_90_60_10_0`)),
+            OR1_util3_CIwidth = mean(CIwidth_OR1_util3),
+            OR2_util3_CIwidth = mean(CIwidth_OR2_util3),
+            OR3_util3_CIwidth = mean(CIwidth_OR3_util3),
+            OR4_util3_CIwidth = mean(CIwidth_OR4_util3),
+            wOR_util3_CIwidth = mean(CI_width_wOR_util3)) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Utilities", "Measure")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) %>%
+  mutate(Utilities = case_match(Utilities, "util1" ~ "100, 75, 50, 25, 0",
+                            "util2" ~ "100, 90, 80, 60, 0",
+                            "util3" ~ "100, 90, 60, 10, 0")) 
+
+#expected power 
+true_power_100_75_50_25_0 <- as.data.frame(true_power_100_75_50_25_0)
+true_power_100_75_50_25_0$Utilities <- "100, 75, 50, 25, 0"
+true_power_100_75_50_25_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power_100_75_50_25_0 <- true_power_100_75_50_25_0 %>%
+  rename(expected_power = true_power_100_75_50_25_0)
+
+true_power_100_90_80_60_0 <- as.data.frame(true_power_100_90_80_60_0)
+true_power_100_90_80_60_0$Utilities <- "100, 90, 80, 60, 0"
+true_power_100_90_80_60_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power_100_90_80_60_0 <- true_power_100_90_80_60_0 %>%
+  rename(expected_power = true_power_100_90_80_60_0)
+
+true_power_100_90_60_10_0 <- as.data.frame(true_power_100_90_60_10_0)
+true_power_100_90_60_10_0$Utilities <- "100, 90, 60, 10, 0"
+true_power_100_90_60_10_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power_100_90_60_10_0 <- true_power_100_90_60_10_0 %>%
+  rename(expected_power = true_power_100_90_60_10_0)
+
+true_power <- rbind(true_power_100_75_50_25_0, true_power_100_90_80_60_0,
+                    true_power_100_90_60_10_0)
+
+true_power2_100_75_50_25_0 <- as.data.frame(true_power2_100_75_50_25_0)
+true_power2_100_75_50_25_0$Utilities <- "100, 75, 50, 25, 0"
+true_power2_100_75_50_25_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power2_100_75_50_25_0 <- true_power2_100_75_50_25_0 %>%
+  rename(expected_power2 = true_power2_100_75_50_25_0)
+
+true_power2_100_90_80_60_0 <- as.data.frame(true_power2_100_90_80_60_0)
+true_power2_100_90_80_60_0$Utilities <- "100, 90, 80, 60, 0"
+true_power2_100_90_80_60_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power2_100_90_80_60_0 <- true_power2_100_90_80_60_0 %>%
+  rename(expected_power2 = true_power2_100_90_80_60_0)
+
+true_power2_100_90_60_10_0 <- as.data.frame(true_power2_100_90_60_10_0)
+true_power2_100_90_60_10_0$Utilities <- "100, 90, 60, 10, 0"
+true_power2_100_90_60_10_0$Scenario <- c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")
+true_power2_100_90_60_10_0 <- true_power2_100_90_60_10_0 %>%
+  rename(expected_power2 = true_power2_100_90_60_10_0)
+
+true_power2 <- rbind(true_power2_100_75_50_25_0, true_power2_100_90_80_60_0,
+                    true_power2_100_90_60_10_0)
+
+true_power <- true_power %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")))
+
+true_power2 <- true_power2 %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6")))
+  
+util_table %>% filter(Summary == "wOR") %>%
+  merge(true_power, by = c("Scenario", "Utilities")) %>%
+  merge(true_power2, by = c("Scenario", "Utilities")) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO", "NP 1", 
+                                        "NP 2", "NP 3", "NP 4", "NP 5", "NP 6"))) %>%
+  relocate(Power, .after = CIwidth) %>%
+  rename("Expected Power Null" = expected_power,
+         "Expected Power alt" = expected_power2) %>%
+  kable(caption = "Different Utilites Adjusted Simulation", 
+      booktabs = T, align = "c", digits = 2, linesep = "") 
+
+
+kable(scenarios1, digits = 3, caption = "Distributions")
+
+```
