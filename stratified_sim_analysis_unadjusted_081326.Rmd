@@ -1,0 +1,2110 @@
+---
+title: "Stratified Model Analysis"
+output: pdf_document
+date: "2025-08-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(kableExtra)
+library(LaplacesDemon)
+library(spatstat.utils)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(stringr)
+library(cowplot)
+source('/users/3/turne899/Stratified_Model/sample_size_functions.R')
+```
+
+
+```{r, echo = F}
+### read in all simulation results 
+sim_results <- NA 
+for (i in c(1:72)) {
+  sim_results_new <- as.data.frame(readRDS(paste0('/users/3/turne899/Stratified_Model/unadjusted_sim_081326_new/results_array_081326_',  i, '.rds')))
+  sim_results_new$array <- i
+  if (i == 1) {
+    sim_results <- sim_results_new
+  } else {
+    sim_results <- rbind(sim_results, sim_results_new)
+  }
+}
+
+
+blrm_sim_results <- NA
+
+for (i in c(1:36)) {
+  sim_results_new <- as.data.frame(readRDS(paste0('/users/3/turne899/Simulation_040725/results_array_040725_',  i, '.rds')))
+  sim_results_new$array <- i
+  if (i == 1) {
+    blrm_sim_results <- sim_results_new[1:1000,]
+  } else {
+    blrm_sim_results <- rbind(blrm_sim_results, sim_results_new[1:1000,])
+  }
+}
+
+```
+
+Utility 1: 100, 75, 50, 25, 0
+
+Utility 2: 100, 90, 60, 10, 0
+
+Utility 3: 100, 90, 80, 60, 0 
+
+
+```{r, echo = F, message = F}
+even_scenarios <- sim_results %>% filter(array %in% 1:36) %>% 
+  mutate(Scenario = as.factor(case_when(array %in% 1:4 ~ "Null",
+                              array %in% 21:24 ~ "Low PO", 
+                              array %in% 25:28 ~ "High PO",
+                              array %in% 5:8 ~ "Low RD", 
+                              array %in% 9:12 ~ "High RD",
+                              array %in% 13:16 ~ "Low RR", 
+                              array %in% 17:20 ~ "High RR",
+                              array %in% 29:32 ~ "NP 1", 
+                              array %in% 33:36 ~ "NP 2")))
+
+even_scenarios$Scenario <- factor(even_scenarios$Scenario, levels = c("Null", "Low PO", "High PO",
+                                                                "Low RD", "High RD",
+                                                                "Low RR", "High RR", "NP 1",
+                                                                "NP 2"))
+
+
+# even_scenarios %>% group_by(Scenario) %>% mutate_if(is.character, as.numeric) %>% 
+#   dplyr::summarize(
+#             wOR1 = round(sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)), 2),
+#             # AOR_100_90_60_10_0 = round(sum((`unweighted_OR_CI.2.5%_100_90_60_10_0` > 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_60_10_0` > 1) | (`unweighted_OR_CI.2.5%_100_90_60_10_0` < 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_60_10_0` < 1), na.rm = T)/
+#             #           sum(!is.na(`unweighted_OR_CI.2.5%_100_90_60_10_0`)), 2),
+#             wOR2 = round(sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)), 2),
+#             wOR3 = round(sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)), 2),
+#             mean_utility1 = round(sum((`delta_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `delta_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`delta_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `delta_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_75_50_25_0`)), 2),
+#             mean_utility2 = round(sum((`delta_CI.2.5%_100_90_60_10_0` > 0 & 
+#                           `delta_CI.97.5%_100_90_60_10_0` > 0) |
+#                             (`delta_CI.2.5%_100_90_60_10_0` < 0 &
+#                           `delta_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_90_60_10_0`)), 2),
+#             # AOR_100_90_80_60_0 = round(sum((`unweighted_OR_CI.2.5%_100_90_80_60_0` > 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_80_60_0` > 1) | (`unweighted_OR_CI.2.5%_100_90_80_60_0` < 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_80_60_0` < 1), na.rm = T)/
+#             #           sum(!is.na(`unweighted_OR_CI.2.5%_100_90_80_60_0`)), 2),
+#             mean_utility3 = round(sum((`delta_CI.2.5%_100_90_80_60_0` > 0 & 
+#                           `delta_CI.97.5%_100_90_80_60_0` > 0) |
+#                             (`delta_CI.2.5%_100_90_80_60_0` < 0 &
+#                           `delta_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_90_80_60_0`)), 2),
+#             NB = round(sum((`NB_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `NB_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`NB_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `NB_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`NB_CI.2.5%_100_75_50_25_0`)), 2)
+#             ) %>%
+#   kable(caption = "Power Scenarios Evenly Distributed Outcome", 
+#       booktabs = T, align = "c") %>%
+#   kable_paper("hover")   
+
+
+```
+
+
+```{r, echo = F, warning = F, out.width="75%"}
+# calculate the true values of wOR 
+#make plot of the various scenarios
+
+#top left corner - stacked bar chart of the various scenarios 
+pc <- rep(0.2, 5)
+pc1 <- pc
+pt1 <- pc 
+# low constant risk difference
+pt2 <- c(0.26, 0.2, 0.2, 0.2, 0.14)
+# high constant risk difference 
+pt3 <- c(0.27, 0.2, 0.2, 0.2, 0.13)
+# low RR
+pt4 <- c(0.225, 0.225, 0.225, 0.225, 0.10)
+# high RR 
+pt5 <- c(0.23, 0.23, 0.23, 0.23, 0.08)
+# low PO
+beta1 <- log(1.37)
+pt6 <- c(invlogit(logit(pc1[1]) + beta1),
+         invlogit(logit(pc1[1] + pc1[2]) + beta1) - invlogit(logit(pc1[1]) + beta1),
+         invlogit(logit(pc1[1] + pc1[2] + pc1[3]) + beta1) - invlogit(logit(pc1[1] + pc1[2]) + beta1),
+         invlogit(logit(pc1[1] + pc1[2] + pc1[3] + pc1[4]) + beta1) - invlogit(logit(pc1[1] + pc1[2] + pc1[3]) + beta1),
+         1 - invlogit(logit(pc1[1] + pc1[2] + pc1[3] + pc1[4]) + beta1))
+
+# high PO 
+beta2 <- log(1.47)
+pt7 <- c(invlogit(logit(pc1[1]) + beta2),
+         invlogit(logit(pc1[1] + pc1[2]) + beta2) - invlogit(logit(pc1[1]) + beta2),
+         invlogit(logit(pc1[1] + pc1[2] + pc1[3]) + beta2) - invlogit(logit(pc1[1] + pc1[2]) + beta2),
+         invlogit(logit(pc1[1] + pc1[2] + pc1[3] + pc1[4]) + beta2) - invlogit(logit(pc1[1] + pc1[2] + pc1[3]) + beta2),
+         1 - invlogit(logit(pc1[1] + pc1[2] + pc1[3] + pc1[4]) + beta2))
+# 20% red in last 3, rest to 1 
+pt8 <- c(0.29, 0.2, 0.17, 0.17, 0.17)
+# 25% red in last 3, rest to 2
+pt9 <- c(0.2, 0.35, 0.15, 0.15, 0.15)
+
+
+scenarios1 <- as.data.frame(rbind(pc, pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8, pt9))
+colnames(scenarios1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+scenarios1$Scenario <- c("Control", "Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p1_even <- scenarios1  %>%
+  mutate(Scenario = factor(Scenario, levels = c("Control", "Null", "Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                 "NP 1", "NP 2"))) %>% 
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "Proportion") %>% 
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"))) %>%
+  ggplot(aes(x = Scenario, y = Proportion, fill = Outcome)) + geom_bar(stat = "identity") + 
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  theme_bw(base_size = 10) + scale_fill_brewer(palette = "Blues") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) 
+
+rd1 <- cumsum(pt1) - cumsum(pc)
+rd2 <- cumsum(pt2) - cumsum(pc)
+rd3 <- cumsum(pt3) - cumsum(pc)
+rd4 <- cumsum(pt4) - cumsum(pc) 
+rd5 <- cumsum(pt5) - cumsum(pc) 
+rd6 <- cumsum(pt6) - cumsum(pc) 
+rd7 <- cumsum(pt7) - cumsum(pc) 
+rd8 <- cumsum(pt8) - cumsum(pc) 
+rd9 <- cumsum(pt9) - cumsum(pc) 
+
+risk_dif1 <- as.data.frame(rbind(rd1, rd2, rd3, rd4, rd5, rd6, rd7, rd8, rd9))
+colnames(risk_dif1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+risk_dif1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p2 <- risk_dif1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RD") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = RD, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RD") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14))  + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5"))
+
+#c(brewer.pal(10, "Paired")[10], brewer.pal(8, "Paired")))
+
+
+rr1 <- cumsum(pt1) / cumsum(pc)
+rr2 <- cumsum(pt2) / cumsum(pc)
+rr3 <- cumsum(pt3) / cumsum(pc)
+rr4 <- cumsum(pt4) / cumsum(pc)
+rr5 <- cumsum(pt5) / cumsum(pc) 
+rr6 <- cumsum(pt6) / cumsum(pc) 
+rr7 <- cumsum(pt7) / cumsum(pc) 
+rr8 <- cumsum(pt8) / cumsum(pc) 
+rr9 <- cumsum(pt9) / cumsum(pc)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p3 <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RR") %>% 
+  filter(Outcome != "Death")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>% 
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Nothing" = "\u2264 1",
+                              "Hypoxemia" = "\u2264 2", 
+                              "ED Visit" = "\u2264 3", 
+                              "Hopsitalization" = "\u2264 4"))
+
+#rr greater than or equal to 
+rr1 <- revcumsum(pc) / revcumsum(pt1)
+rr2 <- revcumsum(pc) / revcumsum(pt2)
+rr3 <- revcumsum(pc) / revcumsum(pt3)
+rr4 <- revcumsum(pc) / revcumsum(pt4)
+rr5 <- revcumsum(pc) / revcumsum(pt5)
+rr6 <- revcumsum(pc) / revcumsum(pt6) 
+rr7 <- revcumsum(pc) / revcumsum(pt7)
+rr8 <- revcumsum(pc) / revcumsum(pt8) 
+rr9 <- revcumsum(pc) / revcumsum(pt9)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p3ge <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RR") %>% 
+  filter(Outcome != "Nothing")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Hypoxemia", "ED Visit", "Hopsitalization", "Death")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>% 
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Hypoxemia" = "\u2265 2", 
+                              "ED Visit" = "\u2265 3", 
+                              "Hopsitalization" = "\u2265 4", 
+                              "Death" = "\u2265 5"))
+
+
+
+or1 <- (cumsum(pt1)/ (1- cumsum(pt1))) / (cumsum(pc) / (1 - cumsum(pc)))
+or2 <- (cumsum(pt2)/ (1- cumsum(pt2))) / (cumsum(pc) / (1 - cumsum(pc)))
+or3 <- (cumsum(pt3)/ (1- cumsum(pt3))) / (cumsum(pc) / (1 - cumsum(pc)))
+or4 <- (cumsum(pt4)/ (1- cumsum(pt4))) / (cumsum(pc) / (1 - cumsum(pc)))
+or5 <- (cumsum(pt5)/ (1- cumsum(pt5))) / (cumsum(pc) / (1 - cumsum(pc)))
+or6 <- (cumsum(pt6)/ (1- cumsum(pt6))) / (cumsum(pc) / (1 - cumsum(pc)))
+or7 <- (cumsum(pt7)/ (1- cumsum(pt7))) / (cumsum(pc) / (1 - cumsum(pc)))
+or8 <- (cumsum(pt8)/ (1- cumsum(pt8))) / (cumsum(pc) / (1 - cumsum(pc)))
+or9 <- (cumsum(pt9)/ (1- cumsum(pt9))) / (cumsum(pc) / (1 - cumsum(pc)))
+
+odds_ratio1 <- as.data.frame(rbind(or1, or2, or3, or4, or5, or6, or7, or8, or9))
+colnames(odds_ratio1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+odds_ratio1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p4 <- odds_ratio1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "OR") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = OR, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative OR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14))  + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5"))
+
+legend <- get_legend(
+  # create some space to the left of the legend
+  p2 + theme(legend.key.size=unit(2.5,"lines")))
+
+plots <- plot_grid(p4+ theme(legend.position="none"), p2+ theme(legend.position="none"), 
+                   p3+ theme(legend.position="none"),
+                   p3ge + theme(legend.position = "none"), labels = c("A", "B", "C", "D"))
+
+plot_grid(plots, legend, rel_widths = c(3, 0.5))
+
+
+scenarios1 <- as.data.frame(rbind(pc, pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8, pt9))
+colnames(scenarios1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+scenarios1$Scenario <- c("Control", "Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+# check standardized effect size for scenarios
+wOR_100_75_50_25_0 <- NA
+mean_utility_100_75_50_25_0 <- NA
+wOR_100_90_60_10_0 <- NA
+mean_utility_100_90_60_10_0 <- NA
+wOR_100_90_80_60_0 <- NA
+mean_utility_100_90_80_60_0 <- NA
+NB <- NA
+true_ORs <- matrix(nrow = 9, ncol = 5)
+true_power_100_75_50_25_0 <- NA
+true_power_100_90_60_10_0 <- NA
+true_power_100_90_80_60_0 <- NA
+true_power2_100_75_50_25_0 <- NA
+true_power2_100_90_60_10_0 <- NA
+true_power2_100_90_80_60_0 <- NA
+
+for (i in 2:nrow(scenarios1)) {
+  pc <- as.numeric(scenarios1[1, 1:5])
+  pt <- as.numeric(scenarios1[i, 1:5])
+  PPO_ctl_leq <- cumsum(pc)
+  PPO_trt_leq <- cumsum(pt)
+  PPO_ctl_geq <- revcumsum(pc)
+  PPO_trt_geq <- revcumsum(pt)
+  p_y_ctl <- pc
+  p_y_trt <- pt
+
+  c <- 5
+  j <- 1:(c-1)
+  k <- 2:c
+
+#   numerator <- sum(p_y_ctl[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#     sum(p_y_ctl[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARD[i-1] <- numerator/denominator
+#   weighted_RD_effect[i] <- CARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_control_PPO[which(results_all$scenario == (i-1))])))
+# 
+# p_y <- (p_y_ctl + p_y_trt)/2
+# numerator <- sum(p_y[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#   sum(p_y[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OARD[i-1] <- numerator/denominator
+# 
+# weighted_RD_effect_overall[i] <- OARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_overall_PPO[which(results_all$scenario == (i-1))])))
+
+
+OR_le <- (PPO_trt_leq / (1- PPO_trt_leq)) / (PPO_ctl_leq / (1- PPO_ctl_leq))
+OR_ge <- (PPO_ctl_geq / (1- PPO_ctl_geq)) / (PPO_trt_geq / (1- PPO_trt_geq))
+
+true_ORs[i-1,] <- OR_le
+
+# # calculate RR 
+#   log_RR_le <- log(PPO_trt_leq/PPO_ctl_leq)
+#   log_RR_ge <- log(PPO_ctl_geq/PPO_trt_geq)
+utility <- c(0, 25, 50, 75, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_75_50_25_0[i-1] <- exp(numerator/denominator)
+
+l <- 1:5
+mean_utility_100_75_50_25_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_75_50_25_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_75_50_25_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+utility <- c(0, 10, 60, 90, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_60_10_0[i-1] <- exp(numerator/denominator)
+
+mean_utility_100_90_60_10_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_60_10_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_60_10_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+utility <- c(0, 60, 80, 90, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_80_60_0[i-1] <- exp(numerator/denominator)
+
+mean_utility_100_90_80_60_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_80_60_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_80_60_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+# true net benefit 
+NB[i-1] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+# weighted_log_OR_effect_control[i] <- weighted_OR_control[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_control_PPO[which(results_all$scenario == (i-1))])))
+
+# #calculate weighted log OR using control probability as weights
+# numerator <- sum(p_y_ctl[j] * log(OR_le[j])) + 
+#   sum(p_y_ctl[k] * log(OR_ge[k]))
+# denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+# CAOR[i-1] <- numerator/denominator
+# 
+# #calculate weighted OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# weighted_OR_overall[i-1] <- (numerator/denominator)
+# weighted_log_OR_effect_overall[i] <- weighted_OR_overall[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_overall_PPO[which(results_all$scenario == (i-1))])))
+# 
+# #calculate weighted log OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OAOR[i-1] <- numerator/denominator
+# 
+#  # calculate weighted RR with control probabilities 
+#   numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * log_RR_le[j])
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect[i] <- CARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_control_PPO[which(results_all$scenario == (i-1))])))
+#   
+#   # calculate weighted RR with overall probabilities 
+#   numerator <- sum((p_y[j] + p_y[k]) * log_RR_le[j])
+#   denominator <- sum(p_y[j]) + sum(p_y[k])
+#   OARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect_overall[i] <- OARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_overall_PPO[which(results_all$scenario == (i-1))])))
+#   
+# 
+# NB[i-1] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+}
+
+# weighted_RD_control/sqrt(var(as.numeric(results_all$weighted_RD_control_PPO)))
+# 
+# weighted_RD8/sqrt(var(as.numeric(results18$weighted_RD_control_PPO)))
+# 
+# weighted_RD_overall8/sqrt(var(as.numeric(results18$weighted_RD_overall_PPO)))
+# 
+# weighted_OR8/sqrt(var(as.numeric(results18$weighted_OR_control_PPO)))
+# 
+# weighted_OR_overall8/sqrt(var(as.numeric(results18$weighted_OR_overall_PPO)))
+# 
+# 
+#cbind(scenarios1$Scenario[2:10], round(wOR_100_75_50_25_0, 3), round(wOR_100_90_60_10_0, 3), round(wOR_100_90_80_60_0, 3))
+
+# tab1 <- results_all_extra %>% group_by(Scenario) %>% 
+#   dplyr::summarize(rd_control = round(mean(as.numeric(weighted_RD_control_PPO)), 3),
+#             rd_overall = round(mean(as.numeric(weighted_RD_overall_PPO)), 3),
+#             or_control = round(mean(as.numeric(weighted_OR_control_PPO)), 3),
+#             or_overall = round(mean(as.numeric(weighted_OR_overall_PPO)), 3),
+#             or_PO = round(mean(as.numeric(OR_PO)), 3))
+
+true_vals <- as.data.frame(cbind(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0, 
+                                 mean_utility_100_75_50_25_0, mean_utility_100_90_60_10_0, 
+                                 mean_utility_100_90_80_60_0, NB))
+true_vals$Scenario <- c("Null", "Low RD", "High RD",
+                              "Low RR", "High RR",
+                              "Low PO", "High PO", "NP 1",
+                              "NP 2")
+colnames(true_vals) <- c("true_wOR_100_75_50_25_0", "true_wOR_100_90_60_10_0", "true_wOR_100_90_80_60_0",
+                         "true_mean_utility_100_75_50_25_0", "true_mean_utility_100_90_60_10_0",
+                         "true_mean_utility_100_90_80_60_0", "true_NB", "Scenario")
+
+# true_vals_long <- true_vals %>% 
+#   pivot_longer(cols = c(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0), 
+#                names_to = "method", values_to = "True")
+
+
+
+true_ORs <- as.data.frame(true_ORs[, -5])
+colnames(true_ORs) <- c("true_OR1", "true_OR2", "true_OR3", "true_OR4")
+true_ORs$Scenario <- c("Null", "Low RD", "High RD",
+                              "Low RR", "High RR",
+                              "Low PO", "High PO", "NP 1",
+                              "NP 2")
+
+```
+
+\newpage 
+
+```{r, echo = F, message = F, warning = F}
+#calculate rmse
+# get blrm even scenarios
+blrm_even_scenarios <- blrm_sim_results %>% filter(array %in% 1:18) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  mutate(Scenario = as.factor(case_when(array %in% 1:2 ~ "Null",
+                              array %in% 11:12 ~ "Low PO", 
+                              array %in% 13:14 ~ "High PO",
+                              array %in% 3:4 ~ "Low RD", 
+                              array %in% 5:6 ~ "High RD",
+                              array %in% 7:8 ~ "Low RR", 
+                              array %in% 9:10 ~ "High RR",
+                              array %in% 15:16 ~ "NP 1", 
+                              array %in% 17:18 ~ "NP 2"))) %>%
+  select(weighted_OR_both_PPO, `weighted_log_OR_both_CI_PPO.97.5%`, `weighted_log_OR_both_CI_PPO.2.5%`)
+
+# blrm_even_scenarios$Scenario <- factor(blrm_even_scenarios$Scenario, levels = c("Null", "Low PO", "High PO",
+#                                                                 "Low RD", "High RD",
+#                                                                 "Low RR", "High RR", "NP 1",
+#                                                                 "NP 2"))
+
+# even_scenarios %>% cbind(blrm_even_scenarios) %>%
+#   merge(true_vals, by = "Scenario") %>% 
+#   mutate(bias_wOR_blrm = weighted_OR_both_PPO - true_wOR_100_75_50_25_0,
+#          bias_wOR_100_75_50_25_0 = weighted_OR_both_100_75_50_25_0 - true_wOR_100_75_50_25_0,
+#          bias_wOR_100_90_60_10_0 = weighted_OR_both_100_90_60_10_0 - true_wOR_100_90_60_10_0,
+#          bias_wOR_100_90_80_60_0 = weighted_OR_both_100_90_80_60_0 - true_wOR_100_90_80_60_0,
+#          bias_mean_utility_100_75_50_25_0 = delta_100_75_50_25_0 - true_mean_utility_100_75_50_25_0,
+#          bias_mean_utility_100_90_60_10_0 = delta_100_90_60_10_0 - true_mean_utility_100_90_60_10_0,
+#          bias_mean_utility_100_90_80_60_0 = delta_100_90_80_60_0 - true_mean_utility_100_90_80_60_0,
+#          bias_NB = NB_100_75_50_25_0 - true_NB) %>%
+#   group_by(Scenario) %>%
+#   dplyr::summarize(wOR_blrm = sqrt(sum(bias_wOR_blrm^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+#             wOR1 = sqrt(sum(bias_wOR_100_75_50_25_0^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+#             wOR2 = sqrt(sum(bias_wOR_100_90_60_10_0^2) / sum(!is.na(bias_wOR_100_90_60_10_0))),
+#             wOR3 = sqrt(sum(bias_wOR_100_90_80_60_0^2) / sum(!is.na(bias_wOR_100_90_80_60_0))),
+#             mean_utility1 = sqrt(sum(bias_mean_utility_100_75_50_25_0^2) /
+#                                                       sum(!is.na(bias_mean_utility_100_75_50_25_0))),
+#             mean_utility2 = sqrt(sum(bias_mean_utility_100_90_60_10_0^2) /
+#                                                       sum(!is.na(bias_mean_utility_100_90_60_10_0))),
+#             mean_utility3 = sqrt(sum(bias_mean_utility_100_90_80_60_0^2) /
+#                                                       sum(!is.na(bias_mean_utility_100_90_80_60_0))),
+#             NB = sqrt(sum(bias_NB^2) / sum(!is.na(bias_NB)))) %>%
+#   select(Scenario, wOR_blrm, wOR1, wOR2, wOR3) %>%
+#   kable(caption = "RMSE Evenly Distributed Outcome", 
+#       booktabs = T, align = "c", digits = 3) %>%
+#   kable_paper("hover")   
+
+
+
+# even_scenarios %>% cbind(blrm_even_scenarios) %>% 
+#   merge(true_vals, by = "Scenario") %>% 
+#   mutate(CI_width_wOR_blrm = `weighted_log_OR_both_CI_PPO.97.5%` -
+#                                         `weighted_log_OR_both_CI_PPO.2.5%`,
+#          CI_width_wOR_100_75_50_25_0 = `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` -
+#                                         `weighted_log_OR_both_CI.2.5%_100_75_50_25_0`,
+#          CI_width_wOR_100_90_60_10_0 = `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` -
+#                                         `weighted_log_OR_both_CI.2.5%_100_90_60_10_0`,
+#          CI_width_wOR_100_90_80_60_0 = `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` -
+#                                         `weighted_log_OR_both_CI.2.5%_100_90_80_60_0`,
+#          CI_width_mean_utility_100_75_50_25_0 = `delta_CI.97.5%_100_75_50_25_0` -
+#                                         `delta_CI.2.5%_100_75_50_25_0`,
+#          CI_width_mean_utility_100_90_60_10_0 = `delta_CI.97.5%_100_90_60_10_0` -
+#                                         `delta_CI.2.5%_100_90_60_10_0`,
+#          CI_width_mean_utility_100_90_80_60_0 = `delta_CI.97.5%_100_90_80_60_0` -
+#                                         `delta_CI.2.5%_100_90_80_60_0`,
+#          CI_width_NB = `NB_CI.97.5%_100_75_50_25_0` - `NB_CI.2.5%_100_75_50_25_0`) %>%
+#   group_by(Scenario) %>%
+#   summarize(wOR_blrm = mean(CI_width_wOR_blrm),
+#             wOR1 = mean(CI_width_wOR_100_75_50_25_0),
+#             wOR2 = mean(CI_width_wOR_100_90_60_10_0),
+#             wOR3 = mean(CI_width_wOR_100_90_80_60_0),
+#             mean_utility1 = mean(CI_width_mean_utility_100_75_50_25_0),
+#             mean_utility2 = mean(CI_width_mean_utility_100_90_60_10_0),
+#             mean_utility3 = mean(CI_width_mean_utility_100_90_80_60_0),
+#             NB = mean(CI_width_NB)) %>%
+#   select(Scenario, wOR_blrm, wOR1, wOR2, wOR3) %>%
+#   kable(caption = "Mean CI Width Evenly Distributed Outcome", 
+#       booktabs = T, align = "c", digits = 3) %>%
+#   kable_paper("hover")   
+
+
+```
+
+
+
+
+\newpage 
+
+```{r, echo = F}
+# make table for three different Utilities
+util_table <- even_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_OR1_util1 = log_OR1_100_75_50_25_0 - log(true_OR1),
+         bias_OR2_util1 = log_OR2_100_75_50_25_0 - log(true_OR2),
+         bias_OR3_util1 = log_OR3_100_75_50_25_0 - log(true_OR3),
+         bias_OR4_util1 = log_OR4_100_75_50_25_0 - log(true_OR4),
+         bias_OR1_util2 = log_OR1_100_90_80_60_0 - log(true_OR1),
+         bias_OR2_util2 = log_OR2_100_90_80_60_0 - log(true_OR2),
+         bias_OR3_util2 = log_OR3_100_90_80_60_0 - log(true_OR3),
+         bias_OR4_util2 = log_OR4_100_90_80_60_0 - log(true_OR4),
+         bias_OR1_util3 = log_OR1_100_90_60_10_0 - log(true_OR1),
+         bias_OR2_util3 = log_OR2_100_90_60_10_0 - log(true_OR2),
+         bias_OR3_util3 = log_OR3_100_90_60_10_0 - log(true_OR3),
+         bias_OR4_util3 = log_OR4_100_90_60_10_0 - log(true_OR4),
+         bias_wOR_util1 = weighted_log_OR_both_100_75_50_25_0 - log(true_wOR_100_75_50_25_0),
+         bias_wOR_util2 = weighted_log_OR_both_100_90_80_60_0 - log(true_wOR_100_90_80_60_0),
+         bias_wOR_util3 = weighted_log_OR_both_100_90_60_10_0 - log(true_wOR_100_90_60_10_0),
+         CIwidth_OR1_util1 = log_OR_CI2_100_75_50_25_0 - log_OR_CI1_100_75_50_25_0,
+         CIwidth_OR2_util1 = log_OR_CI4_100_75_50_25_0 - log_OR_CI3_100_75_50_25_0,
+         CIwidth_OR3_util1 = log_OR_CI6_100_75_50_25_0 - log_OR_CI5_100_75_50_25_0,
+         CIwidth_OR4_util1 = log_OR_CI8_100_75_50_25_0 - log_OR_CI7_100_75_50_25_0,
+         CI_width_wOR_util1 = `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` -
+           `weighted_log_OR_both_CI.2.5%_100_75_50_25_0`,
+         CIwidth_OR1_util2 = log_OR_CI2_100_90_80_60_0 - log_OR_CI1_100_90_80_60_0,
+         CIwidth_OR2_util2 = log_OR_CI4_100_90_80_60_0 - log_OR_CI3_100_90_80_60_0,
+         CIwidth_OR3_util2 = log_OR_CI6_100_90_80_60_0 - log_OR_CI5_100_90_80_60_0,
+         CIwidth_OR4_util2 = log_OR_CI8_100_90_80_60_0 - log_OR_CI7_100_90_80_60_0,
+         CI_width_wOR_util2 = `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` -
+           `weighted_log_OR_both_CI.2.5%_100_90_80_60_0`,
+         CIwidth_OR1_util3 = log_OR_CI2_100_90_60_10_0 - log_OR_CI1_100_90_60_10_0,
+         CIwidth_OR2_util3 = log_OR_CI4_100_90_60_10_0 - log_OR_CI3_100_90_60_10_0,
+         CIwidth_OR3_util3 = log_OR_CI6_100_90_60_10_0 - log_OR_CI5_100_90_60_10_0,
+         CIwidth_OR4_util3 = log_OR_CI8_100_90_60_10_0 - log_OR_CI7_100_90_60_10_0,
+         CI_width_wOR_util3 = `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` -
+           `weighted_log_OR_both_CI.2.5%_100_90_60_10_0`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            OR1_util1_RMSE = sqrt(sum(bias_OR1_util1^2) / sum(!is.na(bias_OR1_util1))),
+            OR2_util1_RMSE = sqrt(sum(bias_OR2_util1^2) / sum(!is.na(bias_OR2_util1))),
+            OR3_util1_RMSE = sqrt(sum(bias_OR3_util1^2) / sum(!is.na(bias_OR3_util1))),
+            OR4_util1_RMSE = sqrt(sum(bias_OR4_util1^2) / sum(!is.na(bias_OR4_util1))),
+            wOR_util1_RMSE = sqrt(sum(bias_wOR_util1^2) / sum(!is.na(bias_wOR_util1))),
+            OR1_util1_Power = sum((log_OR_CI1_100_75_50_25_0 > 0 & 
+                          log_OR_CI2_100_75_50_25_0 > 0) |
+                            (log_OR_CI1_100_75_50_25_0 < 0 &
+                          log_OR_CI2_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_75_50_25_0)),
+            OR2_util1_Power = sum((log_OR_CI3_100_75_50_25_0 > 0 & 
+                          log_OR_CI4_100_75_50_25_0 > 0) |
+                            (log_OR_CI3_100_75_50_25_0 < 0 &
+                          log_OR_CI4_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_75_50_25_0)),
+            OR3_util1_Power = sum((log_OR_CI5_100_75_50_25_0 > 0 & 
+                          log_OR_CI6_100_75_50_25_0 > 0) |
+                            (log_OR_CI5_100_75_50_25_0 < 0 &
+                          log_OR_CI6_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_75_50_25_0)),
+            OR4_util1_Power = sum((log_OR_CI7_100_75_50_25_0 > 0 & 
+                          log_OR_CI8_100_75_50_25_0 > 0) |
+                            (log_OR_CI7_100_75_50_25_0 < 0 &
+                          log_OR_CI8_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_75_50_25_0)),
+            wOR_util1_Power = sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)),
+            OR1_util1_CIwidth = mean(CIwidth_OR1_util1),
+            OR2_util1_CIwidth = mean(CIwidth_OR2_util1),
+            OR3_util1_CIwidth = mean(CIwidth_OR3_util1),
+            OR4_util1_CIwidth = mean(CIwidth_OR4_util1),
+            wOR_util1_CIwidth = mean(CI_width_wOR_util1),
+            OR1_util2_RMSE = sqrt(sum(bias_OR1_util2^2) / sum(!is.na(bias_OR1_util2))),
+            OR2_util2_RMSE = sqrt(sum(bias_OR2_util2^2) / sum(!is.na(bias_OR2_util2))),
+            OR3_util2_RMSE = sqrt(sum(bias_OR3_util2^2) / sum(!is.na(bias_OR3_util2))),
+            OR4_util2_RMSE = sqrt(sum(bias_OR4_util2^2) / sum(!is.na(bias_OR4_util2))),
+            wOR_util2_RMSE = sqrt(sum(bias_wOR_util2^2) / sum(!is.na(bias_wOR_util2))),
+            OR1_util2_Power = sum((log_OR_CI1_100_90_80_60_0 > 0 & 
+                          log_OR_CI2_100_90_80_60_0 > 0) |
+                            (log_OR_CI1_100_90_80_60_0 < 0 &
+                          log_OR_CI2_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_90_80_60_0)),
+            OR2_util2_Power = sum((log_OR_CI3_100_90_80_60_0 > 0 & 
+                          log_OR_CI4_100_90_80_60_0 > 0) |
+                            (log_OR_CI3_100_90_80_60_0 < 0 &
+                          log_OR_CI4_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_90_80_60_0)),
+            OR3_util2_Power = sum((log_OR_CI5_100_90_80_60_0 > 0 & 
+                          log_OR_CI6_100_90_80_60_0 > 0) |
+                            (log_OR_CI5_100_90_80_60_0 < 0 &
+                          log_OR_CI6_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_90_80_60_0)),
+            OR4_util2_Power = sum((log_OR_CI7_100_90_80_60_0 > 0 & 
+                          log_OR_CI8_100_90_80_60_0 > 0) |
+                            (log_OR_CI7_100_90_80_60_0 < 0 &
+                          log_OR_CI8_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_90_80_60_0)),
+            wOR_util2_Power = sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)),
+            OR1_util2_CIwidth = mean(CIwidth_OR1_util2),
+            OR2_util2_CIwidth = mean(CIwidth_OR2_util2),
+            OR3_util2_CIwidth = mean(CIwidth_OR3_util2),
+            OR4_util2_CIwidth = mean(CIwidth_OR4_util2),
+            wOR_util2_CIwidth = mean(CI_width_wOR_util2),
+            OR1_util3_RMSE = sqrt(sum(bias_OR1_util3^2) / sum(!is.na(bias_OR1_util3))),
+            OR2_util3_RMSE = sqrt(sum(bias_OR2_util3^2) / sum(!is.na(bias_OR2_util3))),
+            OR3_util3_RMSE = sqrt(sum(bias_OR3_util3^2) / sum(!is.na(bias_OR3_util3))),
+            OR4_util3_RMSE = sqrt(sum(bias_OR4_util3^2) / sum(!is.na(bias_OR4_util3))),
+            wOR_util3_RMSE = sqrt(sum(bias_wOR_util3^2) / sum(!is.na(bias_wOR_util3))),
+            OR1_util3_Power = sum((log_OR_CI1_100_90_60_10_0 > 0 & 
+                          log_OR_CI2_100_90_60_10_0 > 0) |
+                            (log_OR_CI1_100_90_60_10_0 < 0 &
+                          log_OR_CI2_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_90_60_10_0)),
+            OR2_util3_Power = sum((log_OR_CI3_100_90_60_10_0 > 0 & 
+                          log_OR_CI4_100_90_60_10_0 > 0) |
+                            (log_OR_CI3_100_90_60_10_0 < 0 &
+                          log_OR_CI4_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_90_60_10_0)),
+            OR3_util3_Power = sum((log_OR_CI5_100_90_60_10_0 > 0 & 
+                          log_OR_CI6_100_90_60_10_0 > 0) |
+                            (log_OR_CI5_100_90_60_10_0 < 0 &
+                          log_OR_CI6_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_90_60_10_0)),
+            OR4_util3_Power = sum((log_OR_CI7_100_90_60_10_0 > 0 & 
+                          log_OR_CI8_100_90_60_10_0 > 0) |
+                            (log_OR_CI7_100_90_60_10_0 < 0 &
+                          log_OR_CI8_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_90_60_10_0)),
+            wOR_util3_Power = sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)),
+            OR1_util3_CIwidth = mean(CIwidth_OR1_util3),
+            OR2_util3_CIwidth = mean(CIwidth_OR2_util3),
+            OR3_util3_CIwidth = mean(CIwidth_OR3_util3),
+            OR4_util3_CIwidth = mean(CIwidth_OR4_util3),
+            wOR_util3_CIwidth = mean(CI_width_wOR_util3)) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Utilities", "Measure")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) %>%
+  mutate(Utilities = case_match(Utilities, "util1" ~ "0, 25, 50, 75, 100",
+                            "util2" ~ "0, 60, 80, 90, 100",
+                            "util3" ~ "0, 10, 60, 90, 100")) 
+
+#expected power 
+true_power_100_75_50_25_0 <- as.data.frame(true_power_100_75_50_25_0)
+true_power_100_75_50_25_0$Utilities <- "0, 25, 50, 75, 100"
+true_power_100_75_50_25_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power_100_75_50_25_0 <- true_power_100_75_50_25_0 %>%
+  rename(expected_power = true_power_100_75_50_25_0)
+
+true_power_100_90_80_60_0 <- as.data.frame(true_power_100_90_80_60_0)
+true_power_100_90_80_60_0$Utilities <- "0, 60, 80, 90, 100"
+true_power_100_90_80_60_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power_100_90_80_60_0 <- true_power_100_90_80_60_0 %>%
+  rename(expected_power = true_power_100_90_80_60_0)
+
+true_power_100_90_60_10_0 <- as.data.frame(true_power_100_90_60_10_0)
+true_power_100_90_60_10_0$Utilities <- "0, 10, 60, 90, 100"
+true_power_100_90_60_10_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power_100_90_60_10_0 <- true_power_100_90_60_10_0 %>%
+  rename(expected_power = true_power_100_90_60_10_0)
+
+true_power <- rbind(true_power_100_75_50_25_0, true_power_100_90_80_60_0,
+                    true_power_100_90_60_10_0)
+
+true_power <- true_power %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO", "Low RD", "High RD", 
+                                      "Low RR", "High RR", "NP 1", "NP 2")))
+
+
+true_power2_100_75_50_25_0 <- as.data.frame(true_power2_100_75_50_25_0)
+true_power2_100_75_50_25_0$Utilities <- "0, 25, 50, 75, 100"
+true_power2_100_75_50_25_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power2_100_75_50_25_0 <- true_power2_100_75_50_25_0 %>%
+  rename(expected_power2 = true_power2_100_75_50_25_0)
+
+true_power2_100_90_80_60_0 <- as.data.frame(true_power2_100_90_80_60_0)
+true_power2_100_90_80_60_0$Utilities <- "0, 60, 80, 90, 100"
+true_power2_100_90_80_60_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power2_100_90_80_60_0 <- true_power2_100_90_80_60_0 %>%
+  rename(expected_power2 = true_power2_100_90_80_60_0)
+
+true_power2_100_90_60_10_0 <- as.data.frame(true_power2_100_90_60_10_0)
+true_power2_100_90_60_10_0$Utilities <- "0, 10, 60, 90, 100"
+true_power2_100_90_60_10_0$Scenario <- c("Control", "Null", "Low RD", "High RD", 
+                                        "Low RR", "High RR", "Low PO", "High PO", 
+                                        "NP 1", "NP 2")
+true_power2_100_90_60_10_0 <- true_power2_100_90_60_10_0 %>%
+  rename(expected_power2 = true_power2_100_90_60_10_0)
+
+true_power2 <- rbind(true_power2_100_75_50_25_0, true_power2_100_90_80_60_0,
+                    true_power2_100_90_60_10_0)
+
+true_power2 <- true_power2 %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO", "Low RD", "High RD", 
+                                      "Low RR", "High RR", "NP 1", "NP 2")))
+
+  
+util_table %>% filter(Summary == "wOR") %>%
+  merge(true_power, by = c("Scenario", "Utilities")) %>%
+  merge(true_power2, by = c("Scenario", "Utilities")) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO",
+                                      "Low RD", "High RD", "Low RR", "High RR",
+                                      "NP 1", "NP 2"))) %>%
+  relocate(Power, .after = CIwidth) %>%
+  rename("Expected Power Null" = expected_power,
+         "Expected Power Alt" = expected_power2) %>%
+  kable(caption = "Different Utilites Unadjusted Simulation", 
+      booktabs = T, align = "c", digits = 3, linesep = "") 
+
+util_table %>% filter(Summary == "wOR") %>%
+  # merge(true_power, by = c("Scenario", "Utilities")) %>%
+  merge(true_power2, by = c("Scenario", "Utilities")) %>%
+  select(c("Scenario", "Utilities", "Power", "expected_power2")) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO",
+                                      "Low RD", "High RD", "Low RR", "High RR",
+                                      "NP 1", "NP 2"))) %>%
+  # relocate(Power, .after = CIwidth) %>%
+  rename("Expected Power from Formula" = expected_power2) %>%
+  kable(caption = "Different Utilites Unadjusted Simulation", 
+      booktabs = T, align = "c", digits = 3, linesep = "", format = "latex") 
+
+kable(scenarios1, digits = 2, caption = "Distributions", row.names = F)
+```
+
+
+```{r, echo = F}
+# make plot with power of different utilities 
+util_table_plot <- even_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            wOR_util1_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)),
+            wOR_util2_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)),
+            wOR_util3_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)),
+            
+            wOR_util1_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_75_50_25_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_75_50_25_0`)),
+            wOR_util2_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_90_80_60_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_90_80_60_0`)),
+            wOR_util3_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_90_60_10_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_90_60_10_0`)),
+            
+            delta_util1_Power_util = sum((`delta_CI.2.5%_100_75_50_25_0` > 0 &
+                          `delta_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`delta_CI.2.5%_100_75_50_25_0` < 0 &
+                          `delta_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_75_50_25_0`)),
+            delta_util2_Power_util = sum((`delta_CI.2.5%_100_90_80_60_0` > 0 &
+                          `delta_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`delta_CI.2.5%_100_90_80_60_0` < 0 &
+                          `delta_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_90_80_60_0`)),
+            delta_util3_Power_util = sum((`delta_CI.2.5%_100_90_60_10_0` > 0 &
+                          `delta_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`delta_CI.2.5%_100_90_60_10_0` < 0 &
+                          `delta_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_90_60_10_0`))
+            ) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Utilities", "Measure", "Weights")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) %>%
+  mutate(Utilities = case_match(Utilities, "util1" ~ "0, 25, 50, 75, 100",
+                            "util2" ~ "0, 60, 80, 90, 100",
+                            "util3" ~ "0, 10, 60, 90, 100")) 
+
+
+power_util <- util_table_plot %>% filter(Summary %in% c("wOR", "delta")) %>% 
+  mutate(Utilities = factor(Utilities, levels = c("0, 25, 50, 75, 100", "0, 10, 60, 90, 100", "0, 60, 80, 90, 100")),
+         summary_new = factor(str_c(Summary, Weights, sep = " "), 
+                              levels = c("wOR both", "wOR util", "delta util"))) %>%
+  filter(Scenario %in% c("Null", "Low PO", "Low RD", "Low RR", "NP 1", "NP 2")) %>%
+  ggplot(aes(x = summary_new, y = Power, fill = Utilities)) + 
+  geom_col(position = "dodge") + 
+  theme_bw(base_size = 9) + 
+  scale_fill_manual(values = c(brewer.pal(10, "Paired")[6],  brewer.pal(10, "Paired")[8], 
+                               brewer.pal(10, "Paired")[2]),
+                    labels = c("100, 75, 50, 25, 0", "100, 90, 60, 10, 0", 
+                               "100, 90, 80, 60, 0")) +
+  xlab("Summary Measure")+
+  scale_x_discrete(labels = c("wOR\n Hybrid", "wOR\n Utility", "Mean\n Utility")) +
+  # scale_alpha_manual(values = c("both" = 1, "util" = 0.5),
+  #                    labels = c("both" = "Hybrid",
+  #                               "util" = "Utility Only")) +
+  facet_wrap(~Scenario, scales = "free_y") + 
+  theme(axis.text = element_text(size = 6),
+        axis.title = element_text(size = 8), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8), 
+        strip.text.x = element_text(size = 8), legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 3))
+
+p4 <- odds_ratio1 %>% 
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "OR") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Null", "Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  filter(Scenario %in% c("Null", "Low PO", "Low RD", "Low RR", "NP 1", "NP 2")) %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = OR, color = Scenario, group = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 9) + ylab("Cumulative OR") + 
+  # scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  # scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+  #                               rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+  #                               rep(brewer.pal(8, "Paired")[8], 2))) + 
+  scale_color_brewer(palette = "Dark2") + 
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 8), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8), 
+        strip.text.x = element_text(size = 8), legend.position = "bottom")  + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5")) + 
+  guides(color = guide_legend(nrow = 2, byrow = T))
+
+plots <- plot_grid(p4 + theme(legend.position = "none"), 
+                   power_util+ theme(legend.position = "none"), 
+                   labels = c("A", "B"), align = "hv", axis = "tb")
+
+legend_scenario <- cowplot::get_plot_component(p4, 'guide-box-bottom')
+legend_power <- cowplot::get_plot_component(power_util, 'guide-box-bottom')
+
+legends <- plot_grid(legend_scenario, legend_power)
+
+plot_grid(plots, legends, nrow = 2, rel_heights = c(2.3, 0.5))+ 
+  theme(
+    plot.background = element_rect(fill = "white", color = NA), # Outer plot background
+    panel.background = element_rect(fill = "white", color = NA) # Panel background within each plot
+  )
+# 
+# ggsave("/users/3/turne899/Stratified_Model/unadjusted_sim_081326_new/utility_power_081326.png", dpi = 600,
+#        height = 5, width = 8)
+```
+
+
+```{r, echo = F}
+# enar slides 
+
+power_util <- util_table_plot %>% filter(Summary == "wOR") %>% 
+  mutate(Utilities = factor(Utilities, levels = c("0, 25, 50, 75, 100", "0, 10, 60, 90, 100", "0, 60, 80, 90, 100"))) %>%
+  filter(Scenario %in% c("Null", "Low PO", "Low RR", "NP 2")) %>%
+  ggplot(aes(x = Weights, y = Power, alpha = Weights, fill = Utilities)) + geom_col(position = "dodge") + 
+  theme_bw(base_size = 9) + 
+  scale_fill_manual(values = c(brewer.pal(10, "Paired")[6],  brewer.pal(10, "Paired")[8], 
+                               brewer.pal(10, "Paired")[2]),
+                    labels = c("100, 75, 50, 25, 0", "100, 90, 60, 10, 0", 
+                               "100, 90, 80, 60, 0")) +
+  scale_alpha_manual(values = c("both" = 1, "util" = 0.4),
+                     labels = c("both" = "Hybrid",
+                                "util" = "Utility Only")) +
+  scale_x_discrete(labels = c("both" = "Hybrid",
+                              "util" = "Utility Only")) +
+  facet_wrap(~Scenario, scales = "free_y",
+             labeller = as_labeller(c("Null" = "Null", "Low PO" = "Constant OR",
+                                   "Low RR" = "Constant RR", "NP 2" = "Non-Parametric"))) + 
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16), legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16), 
+        strip.text.x = element_text(size = 14), legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 3, order = 1),
+         alpha = guide_legend(nrow = 3, order = 2))
+
+# ggsave("/users/3/turne899/Stratified_Model/unadjusted_sim_092325/utility_power_061526.png", dpi = 600,
+# height = 6, width = 8)
+
+```
+
+
+# Covid out Distributed Scenarios
+
+
+Utility 1: 0, 25, 50, 75, 100
+
+Utility 2: 0, 10, 60, 90, 100
+
+Utility 3: 0, 60, 80, 90, 100
+
+
+```{r, echo = F, message = F, warning = F}
+covid_scenarios <- sim_results %>% filter(array %in% 37:72) %>% 
+  mutate(Scenario = as.factor(case_when(array %in% 37:40 ~ "Null",
+                              array %in% 57:60 ~ "Low PO", 
+                              array %in% 61:64 ~ "High PO",
+                              array %in% 41:44 ~ "NP 1", 
+                              array %in% 45:48 ~ "NP 2",
+                              array %in% 49:52 ~ "NP 4", 
+                              array %in% 53:56 ~ "NP 3",
+                              array %in% 65:68 ~ "NP 5", 
+                              array %in% 69:72 ~ "NP 6")))
+
+covid_scenarios$Scenario <- factor(covid_scenarios$Scenario, levels = c("Null", "Low PO", "High PO", "NP 1",
+                                                                      "NP 2", "NP 3", "NP 4", "NP 5", "NP 6"))
+
+# get blrm covid scenarios
+blrm_covid_scenarios <- blrm_sim_results %>% filter(array %in% 19:36) %>% 
+  mutate_if(is.character, as.numeric) %>% 
+  mutate(Scenario = as.factor(case_when(array %in% 19:20 ~ "Null",
+                              array %in% 29:30 ~ "Low PO", 
+                              array %in% 31:32 ~ "High PO",
+                              array %in% 21:22 ~ "NP 1", 
+                              array %in% 23:24 ~ "NP 2",
+                              array %in% 25:26 ~ "NP 4", 
+                              array %in% 27:28 ~ "NP 3",
+                              array %in% 33:34 ~ "NP 5", 
+                              array %in% 35:36 ~ "NP 6"))) %>%
+  select(weighted_OR_both_PPO, `weighted_log_OR_both_CI_PPO.97.5%`, `weighted_log_OR_both_CI_PPO.2.5%`)
+
+
+# covid_scenarios %>% filter(!is.na(weighted_log_OR_both_100_90_60_10_0)) %>%
+#   group_by(Scenario) %>% mutate_if(is.character, as.numeric) %>% 
+#   dplyr::summarize(
+#             wOR1 = round(sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)), 2),
+#             # AOR_100_90_60_10_0 = round(sum((`unweighted_OR_CI.2.5%_100_90_60_10_0` > 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_60_10_0` > 1) | (`unweighted_OR_CI.2.5%_100_90_60_10_0` < 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_60_10_0` < 1), na.rm = T)/
+#             #           sum(!is.na(`unweighted_OR_CI.2.5%_100_90_60_10_0`)), 2),
+#             wOR2 = round(sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)), 2),
+#             wOR3 = round(sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+#                           `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+#                             (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+#                           `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)), 2),
+#             mean_utility1 = round(sum((`delta_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `delta_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`delta_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `delta_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_75_50_25_0`)), 2),
+#             mean_utility2 = round(sum((`delta_CI.2.5%_100_90_60_10_0` > 0 & 
+#                           `delta_CI.97.5%_100_90_60_10_0` > 0) |
+#                             (`delta_CI.2.5%_100_90_60_10_0` < 0 &
+#                           `delta_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_90_60_10_0`)), 2),
+#             # AOR_100_90_80_60_0 = round(sum((`unweighted_OR_CI.2.5%_100_90_80_60_0` > 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_80_60_0` > 1) | (`unweighted_OR_CI.2.5%_100_90_80_60_0` < 1 & 
+#             #               `unweighted_OR_CI.97.5%_100_90_80_60_0` < 1), na.rm = T)/
+#             #           sum(!is.na(`unweighted_OR_CI.2.5%_100_90_80_60_0`)), 2),
+#             mean_utility3 = round(sum((`delta_CI.2.5%_100_90_80_60_0` > 0 & 
+#                           `delta_CI.97.5%_100_90_80_60_0` > 0) |
+#                             (`delta_CI.2.5%_100_90_80_60_0` < 0 &
+#                           `delta_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`delta_CI.2.5%_100_90_80_60_0`)), 2),
+#             NB = round(sum((`NB_CI.2.5%_100_75_50_25_0` > 0 & 
+#                           `NB_CI.97.5%_100_75_50_25_0` > 0) |
+#                             (`NB_CI.2.5%_100_75_50_25_0` < 0 &
+#                           `NB_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+#                       sum(!is.na(`NB_CI.2.5%_100_75_50_25_0`)), 2)
+#             ) %>%
+#   kable(caption = "Power Scenarios Covid Distributed Outcome", 
+#       booktabs = T, align = "c") %>%
+#   kable_paper("hover")   
+
+
+```
+
+
+```{r, echo = F, warning = F, out.width="75%"}
+# calculate the true values of wOR 
+#make plot of the various scenarios
+pc <- c(0.70, 0.18, 0.09, 0.02, 0.01)
+pc2 <- pc
+pt1 <- pc 
+# low constant risk difference
+pt2 <- c(0.76, 0.18, 0.05, 0.005, 0.005)
+# high constant risk difference 
+pt3 <- c(0.78, 0.17, 0.04, 0.005, 0.005)
+# high RR 
+pt4 <- c(0.77, 0.18, 0.025, 0.0175, 0.0075)
+# low RR
+pt5 <- c(0.78, 0.185, 0.025, 0.0075, 0.0025)
+# low PO
+beta1_2 <- log(1.47)
+pt6 <- c(invlogit(logit(pc2[1]) + beta1_2),
+                     invlogit(logit(pc2[1] + pc2[2]) + beta1_2) - invlogit(logit(pc2[1]) + beta1_2),
+                     invlogit(logit(pc2[1] + pc2[2] + pc2[3]) + beta1_2) - invlogit(logit(pc2[1] + pc2[2]) + beta1_2),
+                     invlogit(logit(pc2[1] + pc2[2] + pc2[3] + pc2[4]) + beta1_2) - 
+                          invlogit(logit(pc2[1] + pc2[2] + pc2[3]) + beta1_2),
+                     1 - invlogit(logit(pc2[1] + pc2[2] + pc2[3] + pc2[4]) + beta1_2))
+
+# high PO 
+beta2_2 <- log(1.60)
+pt7 <- c(invlogit(logit(pc2[1]) + beta2_2),
+                      invlogit(logit(pc2[1] + pc2[2]) + beta2_2) - invlogit(logit(pc2[1]) + beta2_2),
+                      invlogit(logit(pc2[1] + pc2[2] + pc2[3]) + beta2_2) - invlogit(logit(pc2[1] + pc2[2]) + beta2_2),
+                      invlogit(logit(pc2[1] + pc2[2] + pc2[3] + pc2[4]) + beta2_2) - 
+                          invlogit(logit(pc2[1] + pc2[2] + pc2[3]) + beta2_2),
+                      1 - invlogit(logit(pc2[1] + pc2[2] + pc2[3] + pc2[4]) + beta2_2))
+# 20% red in last 3, rest to 1 
+pt8 <- c(0.772, 0.18, 0.036, 0.008, 0.004)
+# 25% red in last 3, rest to 2
+pt9 <- c(0.70, 0.27, 0.0225, 0.0050, 0.0025)
+
+scenarios1 <- as.data.frame(rbind(pc2, pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8, pt9))
+colnames(scenarios1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+scenarios1$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4", 
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+
+p1 <- scenarios1  %>%
+  mutate(Scenario = factor(Scenario, levels = c("Control", "Null", 
+                                                "Low PO", "High PO", "NP 1", "NP 2",
+                                                "NP 3", "NP 4", "NP 5", "NP 6"))) %>% 
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "Proportion") %>% 
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"))) %>%
+  ggplot(aes(x = Scenario, y = Proportion, fill = Outcome)) + geom_bar(stat = "identity") + 
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  theme_bw(base_size = 10) + scale_fill_brewer(palette = "Blues") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) 
+
+rd1 <- cumsum(pt1) - cumsum(pc)
+rd2 <- cumsum(pt2) - cumsum(pc)
+rd3 <- cumsum(pt3) - cumsum(pc)
+rd4 <- cumsum(pt4) - cumsum(pc) 
+rd5 <- cumsum(pt5) - cumsum(pc) 
+rd6 <- cumsum(pt6) - cumsum(pc) 
+rd7 <- cumsum(pt7) - cumsum(pc) 
+rd8 <- cumsum(pt8) - cumsum(pc) 
+rd9 <- cumsum(pt9) - cumsum(pc) 
+
+risk_dif1 <- as.data.frame(rbind(rd1, rd2, rd3, rd4, rd5, rd6, rd7, rd8, rd9))
+colnames(risk_dif1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+risk_dif1$Scenario <- c("Null", "NP 1", "NP 2", "NP 3", "NP 4", 
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+scaleFUN <- function(x) sprintf("%.2f", x)
+
+p2 <- risk_dif1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RD") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2", 
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = RD, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RD") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  + scale_y_continuous(labels=scaleFUN)  + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5"))
+
+#c(brewer.pal(10, "Paired")[10], brewer.pal(8, "Paired")))
+
+
+rr1 <- cumsum(pt1) / cumsum(pc)
+rr2 <- cumsum(pt2) / cumsum(pc)
+rr3 <- cumsum(pt3) / cumsum(pc)
+rr4 <- cumsum(pt4) / cumsum(pc)
+rr5 <- cumsum(pt5) / cumsum(pc) 
+rr6 <- cumsum(pt6) / cumsum(pc) 
+rr7 <- cumsum(pt7) / cumsum(pc) 
+rr8 <- cumsum(pt8) / cumsum(pc) 
+rr9 <- cumsum(pt9) / cumsum(pc)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <-c("Null", "NP 1", "NP 2", "NP 3", "NP 4", 
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+p3 <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RR") %>% 
+  filter(Outcome != "Death")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2", 
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>% 
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Nothing" = "\u2264 1",
+                              "Hypoxemia" = "\u2264 2", 
+                              "ED Visit" = "\u2264 3", 
+                              "Hopsitalization" = "\u2264 4"))
+
+#rr greater than or equal to 
+rr1 <- revcumsum(pc) / revcumsum(pt1)
+rr2 <- revcumsum(pc) / revcumsum(pt2)
+rr3 <- revcumsum(pc) / revcumsum(pt3)
+rr4 <- revcumsum(pc) / revcumsum(pt4)
+rr5 <- revcumsum(pc) / revcumsum(pt5)
+rr6 <- revcumsum(pc) / revcumsum(pt6) 
+rr7 <- revcumsum(pc) / revcumsum(pt7)
+rr8 <- revcumsum(pc) / revcumsum(pt8) 
+rr9 <- revcumsum(pc) / revcumsum(pt9)
+
+rel_risk1 <- as.data.frame(rbind(rr1, rr2, rr3, rr4, rr5, rr6, rr7, rr8, rr9))
+colnames(rel_risk1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+rel_risk1$Scenario <- c("Null", "Low RD", "High RD", "Low RR", "High RR", "Low PO", "High PO", 
+                         "NP 1", "NP 2")
+
+p3ge <- rel_risk1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "RR") %>% 
+  filter(Outcome != "Nothing")  %>%
+  mutate(Outcome = factor(Outcome, levels = c("Hypoxemia", "ED Visit", "Hopsitalization", "Death")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "Low RD", "High RD", 
+                                                "Low RR", "High RR", 
+                                                "NP 1", "NP 2")))  %>%
+  group_by(Scenario) %>% 
+  ggplot(aes(x = Outcome, y = RR, color = Scenario, group = Scenario, linetype = Scenario)) + 
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative RR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2))) + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Hypoxemia" = "\u2265 2", 
+                              "ED Visit" = "\u2265 3", 
+                              "Hopsitalization" = "\u2265 4", 
+                              "Death" = "\u2265 5"))
+
+
+
+or1 <- (cumsum(pt1)/ (1- cumsum(pt1))) / (cumsum(pc) / (1 - cumsum(pc)))
+or2 <- (cumsum(pt2)/ (1- cumsum(pt2))) / (cumsum(pc) / (1 - cumsum(pc)))
+or3 <- (cumsum(pt3)/ (1- cumsum(pt3))) / (cumsum(pc) / (1 - cumsum(pc)))
+or4 <- (cumsum(pt4)/ (1- cumsum(pt4))) / (cumsum(pc) / (1 - cumsum(pc)))
+or5 <- (cumsum(pt5)/ (1- cumsum(pt5))) / (cumsum(pc) / (1 - cumsum(pc)))
+or6 <- (cumsum(pt6)/ (1- cumsum(pt6))) / (cumsum(pc) / (1 - cumsum(pc)))
+or7 <- (cumsum(pt7)/ (1- cumsum(pt7))) / (cumsum(pc) / (1 - cumsum(pc)))
+or8 <- (cumsum(pt8)/ (1- cumsum(pt8))) / (cumsum(pc) / (1 - cumsum(pc)))
+or9 <- (cumsum(pt9)/ (1- cumsum(pt9))) / (cumsum(pc) / (1 - cumsum(pc)))
+
+odds_ratio1 <- as.data.frame(rbind(or1, or2, or3, or4, or5, or6, or7, or8, or9))
+colnames(odds_ratio1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+odds_ratio1$Scenario <- c("Null", "NP 1", "NP 2", "NP 3", "NP 4", 
+                                                "Low PO", "High PO", "NP 5", "NP 6")
+
+p4 <- odds_ratio1 %>% filter(Scenario != "Null") %>%
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "OR") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Low PO", "High PO", "NP 1", "NP 2", 
+                                                "NP 3", "NP 4", "NP 5", "NP 6")))  %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = OR, color = Scenario, group = Scenario, linetype = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 10) + ylab("Cumulative OR") + 
+  scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+                                rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+                                rep(brewer.pal(8, "Paired")[8], 2)))  + 
+  theme(axis.text = element_text(size = 9),
+        axis.title = element_text(size = 14), legend.text = element_text(size = 9),
+        legend.title = element_text(size = 14), 
+        strip.text.x = element_text(size = 14)) + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5"))
+
+legend <- get_legend(
+  # create some space to the left of the legend
+  p2 + theme(legend.key.size=unit(2.5,"lines")))
+
+library(cowplot)
+plots <- plot_grid(p4+ theme(legend.position="none"), p2+ theme(legend.position="none"), 
+                   p3+ theme(legend.position="none"),
+                   p3ge + theme(legend.position = "none"), labels = c("A", "B", "C", "D"))
+
+plot_grid(plots, legend, rel_widths = c(3, 0.5))
+
+#correct plot to save
+#ggsave("covid_out_scenarios_040725.png", height = 8, width = 8, dpi = 600)
+
+
+# plot to save for supplement showing distributions 
+
+# plots <- plot_grid(p1_even + theme(legend.position = "none"), p1+ theme(legend.position = "none"),
+#           labels = c("A", "B"))
+# legend <- get_legend(
+#   # create some space to the left of the legend
+#   p1_even)
+# plot_grid(plots, legend, rel_widths = c(3, 0.5))
+
+#ggsave("scenario_distributions_040725.png", height = 6, width = 9, dpi = 600)
+
+
+
+scenarios1 <- as.data.frame(rbind(pc2, pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8, pt9))
+colnames(scenarios1) <- c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death")
+scenarios1$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4", "Low PO", "High PO", 
+                         "NP 5", "NP 6")
+
+# check standardized effect size for scenarios
+wOR_100_75_50_25_0 <- NA
+mean_utility_100_75_50_25_0 <- NA
+wOR_100_90_60_10_0 <- NA
+mean_utility_100_90_60_10_0 <- NA
+wOR_100_90_80_60_0 <- NA
+mean_utility_100_90_80_60_0 <- NA
+NB <- NA
+true_ORs <- matrix(nrow = 9, ncol = 5)
+true_power_100_75_50_25_0 <- NA
+true_power_100_90_60_10_0 <- NA
+true_power_100_90_80_60_0 <- NA
+true_power2_100_75_50_25_0 <- NA
+true_power2_100_90_60_10_0 <- NA
+true_power2_100_90_80_60_0 <- NA
+
+for (i in 2:nrow(scenarios1)) {
+  pc <- as.numeric(scenarios1[1, 1:5])
+  pt <- as.numeric(scenarios1[i, 1:5])
+  PPO_ctl_leq <- cumsum(pc)
+  PPO_trt_leq <- cumsum(pt)
+  PPO_ctl_geq <- revcumsum(pc)
+  PPO_trt_geq <- revcumsum(pt)
+  p_y_ctl <- pc
+  p_y_trt <- pt
+
+  c <- 5
+  j <- 1:(c-1)
+  k <- 2:c
+
+#   numerator <- sum(p_y_ctl[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#     sum(p_y_ctl[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARD[i-1] <- numerator/denominator
+#   weighted_RD_effect[i] <- CARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_control_PPO[which(results_all$scenario == (i-1))])))
+# 
+# p_y <- (p_y_ctl + p_y_trt)/2
+# numerator <- sum(p_y[j] * (PPO_trt_leq[j] - PPO_ctl_leq[j])) + 
+#   sum(p_y[k] * (PPO_ctl_geq[k] - PPO_trt_geq[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OARD[i-1] <- numerator/denominator
+# 
+# weighted_RD_effect_overall[i] <- OARD[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_RD_overall_PPO[which(results_all$scenario == (i-1))])))
+
+
+OR_le <- (PPO_trt_leq / (1- PPO_trt_leq)) / (PPO_ctl_leq / (1- PPO_ctl_leq))
+OR_ge <- (PPO_ctl_geq / (1- PPO_ctl_geq)) / (PPO_trt_geq / (1- PPO_trt_geq))
+
+true_ORs[i-1,] <- OR_le
+
+# # calculate RR 
+#   log_RR_le <- log(PPO_trt_leq/PPO_ctl_leq)
+#   log_RR_ge <- log(PPO_ctl_geq/PPO_trt_geq)
+utility <- c(0, 25, 50, 75, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_75_50_25_0[i-1] <- exp(numerator/denominator)
+
+l <- 1:5
+mean_utility_100_75_50_25_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_75_50_25_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility) 
+true_power2_100_75_50_25_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+utility <- c(0, 10, 60, 90, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_60_10_0[i-1] <- exp(numerator/denominator)
+
+mean_utility_100_90_60_10_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_60_10_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_60_10_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+utility <- c(0, 60, 80, 90, 100)
+#calculate weighted OR 
+  # fully bayesian with both cumulative and split weights
+  numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                     (abs(utility[j] - utility[k])) * 
+                     (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])) * log(OR_le[j]))
+  denominator <- sum((p_y_ctl[j] + p_y_ctl[k]) * 
+                       (abs(utility[j] - utility[k])) * (PPO_ctl_leq[j] * (1-PPO_ctl_leq[j])))
+wOR_100_90_80_60_0[i-1] <- exp(numerator/denominator)
+
+mean_utility_100_90_80_60_0[i-1] <- sum(utility[l] * p_y_trt[l]) - sum(utility[l] * p_y_ctl[l])
+
+# true power 
+true_power_100_90_80_60_0[i] <- ordinal_power_utility_null(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+true_power2_100_90_80_60_0[i] <- ordinal_power_utility_new(pc = pc, A = 1, 
+                                                      pt = pt, alpha = 0.05, 
+                                                      n = 1000, utilities = utility)
+
+# true net benefit 
+NB[i-1] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+# weighted_log_OR_effect_control[i] <- weighted_OR_control[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_control_PPO[which(results_all$scenario == (i-1))])))
+
+# #calculate weighted log OR using control probability as weights
+# numerator <- sum(p_y_ctl[j] * log(OR_le[j])) + 
+#   sum(p_y_ctl[k] * log(OR_ge[k]))
+# denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+# CAOR[i-1] <- numerator/denominator
+# 
+# #calculate weighted OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# weighted_OR_overall[i-1] <- (numerator/denominator)
+# weighted_log_OR_effect_overall[i] <- weighted_OR_overall[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_OR_overall_PPO[which(results_all$scenario == (i-1))])))
+# 
+# #calculate weighted log OR using overall probability as weights
+# numerator <- sum(p_y[j] * log(OR_le[j])) + 
+#   sum(p_y[k] * log(OR_ge[k]))
+# denominator <- sum(p_y[j]) + sum(p_y[k])
+# OAOR[i-1] <- numerator/denominator
+# 
+#  # calculate weighted RR with control probabilities 
+#   numerator <- sum((p_y_ctl[j] + p_y_ctl[k]) * log_RR_le[j])
+#   denominator <- sum(p_y_ctl[j]) + sum(p_y_ctl[k])
+#   CARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect[i] <- CARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_control_PPO[which(results_all$scenario == (i-1))])))
+#   
+#   # calculate weighted RR with overall probabilities 
+#   numerator <- sum((p_y[j] + p_y[k]) * log_RR_le[j])
+#   denominator <- sum(p_y[j]) + sum(p_y[k])
+#   OARR[i-1] <- (numerator/denominator)
+#   weighted_log_RR_effect_overall[i] <- OARR[i-1]/
+#     sqrt(var(as.numeric(results_all$weighted_log_RR_overall_PPO[which(results_all$scenario == (i-1))])))
+#   
+# 
+# NB[i-1] <- sum(p_y_trt[j] * PPO_ctl_geq[j+1]) - (sum(p_y_ctl[j] * PPO_trt_geq[j+1]))
+
+}
+
+# weighted_RD_control/sqrt(var(as.numeric(results_all$weighted_RD_control_PPO)))
+# 
+# weighted_RD8/sqrt(var(as.numeric(results18$weighted_RD_control_PPO)))
+# 
+# weighted_RD_overall8/sqrt(var(as.numeric(results18$weighted_RD_overall_PPO)))
+# 
+# weighted_OR8/sqrt(var(as.numeric(results18$weighted_OR_control_PPO)))
+# 
+# weighted_OR_overall8/sqrt(var(as.numeric(results18$weighted_OR_overall_PPO)))
+# 
+# 
+#cbind(scenarios1$Scenario[2:10], round(wOR_100_75_50_25_0, 3), round(wOR_100_90_60_10_0, 3), round(wOR_100_90_80_60_0, 3))
+
+# tab1 <- results_all_extra %>% group_by(Scenario) %>% 
+#   dplyr::summarize(rd_control = round(mean(as.numeric(weighted_RD_control_PPO)), 3),
+#             rd_overall = round(mean(as.numeric(weighted_RD_overall_PPO)), 3),
+#             or_control = round(mean(as.numeric(weighted_OR_control_PPO)), 3),
+#             or_overall = round(mean(as.numeric(weighted_OR_overall_PPO)), 3),
+#             or_PO = round(mean(as.numeric(OR_PO)), 3))
+
+true_vals <- as.data.frame(cbind(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0, 
+                                 mean_utility_100_75_50_25_0, mean_utility_100_90_60_10_0, 
+                                 mean_utility_100_90_80_60_0, NB))
+true_vals$Scenario <- c("Null", "NP 1", "NP 2",
+                              "NP 3", "NP 4",
+                              "Low PO", "High PO", "NP 5",
+                              "NP 6")
+colnames(true_vals) <- c("true_wOR_100_75_50_25_0", "true_wOR_100_90_60_10_0", "true_wOR_100_90_80_60_0",
+                         "true_mean_utility_100_75_50_25_0", "true_mean_utility_100_90_60_10_0",
+                         "true_mean_utility_100_90_80_60_0", "true_NB", "Scenario")
+
+# true_vals_long <- true_vals %>% 
+#   pivot_longer(cols = c(wOR_100_75_50_25_0, wOR_100_90_60_10_0, wOR_100_90_80_60_0), 
+#                names_to = "method", values_to = "True")
+
+
+
+true_ORs <- as.data.frame(true_ORs[, -5])
+colnames(true_ORs) <- c("true_OR1", "true_OR2", "true_OR3", "true_OR4")
+true_ORs$Scenario <- c("Null", "NP 1", "NP 2",
+                              "NP 3", "NP 4",
+                              "Low PO", "High PO", "NP 5",
+                              "NP 6")
+
+```
+
+
+\newpage 
+
+
+
+```{r, echo = F}
+# make table for three different Utilities
+util_table <- covid_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_OR1_util1 = log_OR1_100_75_50_25_0 - log(true_OR1),
+         bias_OR2_util1 = log_OR2_100_75_50_25_0 - log(true_OR2),
+         bias_OR3_util1 = log_OR3_100_75_50_25_0 - log(true_OR3),
+         bias_OR4_util1 = log_OR4_100_75_50_25_0 - log(true_OR4),
+         bias_OR1_util2 = log_OR1_100_90_80_60_0 - log(true_OR1),
+         bias_OR2_util2 = log_OR2_100_90_80_60_0 - log(true_OR2),
+         bias_OR3_util2 = log_OR3_100_90_80_60_0 - log(true_OR3),
+         bias_OR4_util2 = log_OR4_100_90_80_60_0 - log(true_OR4),
+         bias_OR1_util3 = log_OR1_100_90_60_10_0 - log(true_OR1),
+         bias_OR2_util3 = log_OR2_100_90_60_10_0 - log(true_OR2),
+         bias_OR3_util3 = log_OR3_100_90_60_10_0 - log(true_OR3),
+         bias_OR4_util3 = log_OR4_100_90_60_10_0 - log(true_OR4),
+         bias_wOR_util1 = weighted_log_OR_both_100_75_50_25_0 - log(true_wOR_100_75_50_25_0),
+         bias_wOR_util2 = weighted_log_OR_both_100_90_80_60_0 - log(true_wOR_100_90_80_60_0),
+         bias_wOR_util3 = weighted_log_OR_both_100_90_60_10_0 - log(true_wOR_100_90_60_10_0),
+         CIwidth_OR1_util1 = log_OR_CI2_100_75_50_25_0 - log_OR_CI1_100_75_50_25_0,
+         CIwidth_OR2_util1 = log_OR_CI4_100_75_50_25_0 - log_OR_CI3_100_75_50_25_0,
+         CIwidth_OR3_util1 = log_OR_CI6_100_75_50_25_0 - log_OR_CI5_100_75_50_25_0,
+         CIwidth_OR4_util1 = log_OR_CI8_100_75_50_25_0 - log_OR_CI7_100_75_50_25_0,
+         CI_width_wOR_util1 = `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` -
+           `weighted_log_OR_both_CI.2.5%_100_75_50_25_0`,
+         CIwidth_OR1_util2 = log_OR_CI2_100_90_80_60_0 - log_OR_CI1_100_90_80_60_0,
+         CIwidth_OR2_util2 = log_OR_CI4_100_90_80_60_0 - log_OR_CI3_100_90_80_60_0,
+         CIwidth_OR3_util2 = log_OR_CI6_100_90_80_60_0 - log_OR_CI5_100_90_80_60_0,
+         CIwidth_OR4_util2 = log_OR_CI8_100_90_80_60_0 - log_OR_CI7_100_90_80_60_0,
+         CI_width_wOR_util2 = `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` -
+           `weighted_log_OR_both_CI.2.5%_100_90_80_60_0`,
+         CIwidth_OR1_util3 = log_OR_CI2_100_90_60_10_0 - log_OR_CI1_100_90_60_10_0,
+         CIwidth_OR2_util3 = log_OR_CI4_100_90_60_10_0 - log_OR_CI3_100_90_60_10_0,
+         CIwidth_OR3_util3 = log_OR_CI6_100_90_60_10_0 - log_OR_CI5_100_90_60_10_0,
+         CIwidth_OR4_util3 = log_OR_CI8_100_90_60_10_0 - log_OR_CI7_100_90_60_10_0,
+         CI_width_wOR_util3 = `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` -
+           `weighted_log_OR_both_CI.2.5%_100_90_60_10_0`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            OR1_util1_RMSE = sqrt(sum(bias_OR1_util1^2) / sum(!is.na(bias_OR1_util1))),
+            OR2_util1_RMSE = sqrt(sum(bias_OR2_util1^2) / sum(!is.na(bias_OR2_util1))),
+            OR3_util1_RMSE = sqrt(sum(bias_OR3_util1^2) / sum(!is.na(bias_OR3_util1))),
+            OR4_util1_RMSE = sqrt(sum(bias_OR4_util1^2) / sum(!is.na(bias_OR4_util1))),
+            wOR_util1_RMSE = sqrt(sum(bias_wOR_util1^2) / sum(!is.na(bias_wOR_util1))),
+            OR1_util1_Power = sum((log_OR_CI1_100_75_50_25_0 > 0 & 
+                          log_OR_CI2_100_75_50_25_0 > 0) |
+                            (log_OR_CI1_100_75_50_25_0 < 0 &
+                          log_OR_CI2_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_75_50_25_0)),
+            OR2_util1_Power = sum((log_OR_CI3_100_75_50_25_0 > 0 & 
+                          log_OR_CI4_100_75_50_25_0 > 0) |
+                            (log_OR_CI3_100_75_50_25_0 < 0 &
+                          log_OR_CI4_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_75_50_25_0)),
+            OR3_util1_Power = sum((log_OR_CI5_100_75_50_25_0 > 0 & 
+                          log_OR_CI6_100_75_50_25_0 > 0) |
+                            (log_OR_CI5_100_75_50_25_0 < 0 &
+                          log_OR_CI6_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_75_50_25_0)),
+            OR4_util1_Power = sum((log_OR_CI7_100_75_50_25_0 > 0 & 
+                          log_OR_CI8_100_75_50_25_0 > 0) |
+                            (log_OR_CI7_100_75_50_25_0 < 0 &
+                          log_OR_CI8_100_75_50_25_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_75_50_25_0)),
+            wOR_util1_Power = sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)),
+            OR1_util1_CIwidth = mean(CIwidth_OR1_util1),
+            OR2_util1_CIwidth = mean(CIwidth_OR2_util1),
+            OR3_util1_CIwidth = mean(CIwidth_OR3_util1),
+            OR4_util1_CIwidth = mean(CIwidth_OR4_util1),
+            wOR_util1_CIwidth = mean(CI_width_wOR_util1),
+            OR1_util2_RMSE = sqrt(sum(bias_OR1_util2^2) / sum(!is.na(bias_OR1_util2))),
+            OR2_util2_RMSE = sqrt(sum(bias_OR2_util2^2) / sum(!is.na(bias_OR2_util2))),
+            OR3_util2_RMSE = sqrt(sum(bias_OR3_util2^2) / sum(!is.na(bias_OR3_util2))),
+            OR4_util2_RMSE = sqrt(sum(bias_OR4_util2^2) / sum(!is.na(bias_OR4_util2))),
+            wOR_util2_RMSE = sqrt(sum(bias_wOR_util2^2) / sum(!is.na(bias_wOR_util2))),
+            OR1_util2_Power = sum((log_OR_CI1_100_90_80_60_0 > 0 & 
+                          log_OR_CI2_100_90_80_60_0 > 0) |
+                            (log_OR_CI1_100_90_80_60_0 < 0 &
+                          log_OR_CI2_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_90_80_60_0)),
+            OR2_util2_Power = sum((log_OR_CI3_100_90_80_60_0 > 0 & 
+                          log_OR_CI4_100_90_80_60_0 > 0) |
+                            (log_OR_CI3_100_90_80_60_0 < 0 &
+                          log_OR_CI4_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_90_80_60_0)),
+            OR3_util2_Power = sum((log_OR_CI5_100_90_80_60_0 > 0 & 
+                          log_OR_CI6_100_90_80_60_0 > 0) |
+                            (log_OR_CI5_100_90_80_60_0 < 0 &
+                          log_OR_CI6_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_90_80_60_0)),
+            OR4_util2_Power = sum((log_OR_CI7_100_90_80_60_0 > 0 & 
+                          log_OR_CI8_100_90_80_60_0 > 0) |
+                            (log_OR_CI7_100_90_80_60_0 < 0 &
+                          log_OR_CI8_100_90_80_60_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_90_80_60_0)),
+            wOR_util2_Power = sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)),
+            OR1_util2_CIwidth = mean(CIwidth_OR1_util2),
+            OR2_util2_CIwidth = mean(CIwidth_OR2_util2),
+            OR3_util2_CIwidth = mean(CIwidth_OR3_util2),
+            OR4_util2_CIwidth = mean(CIwidth_OR4_util2),
+            wOR_util2_CIwidth = mean(CI_width_wOR_util2),
+            OR1_util3_RMSE = sqrt(sum(bias_OR1_util3^2) / sum(!is.na(bias_OR1_util3))),
+            OR2_util3_RMSE = sqrt(sum(bias_OR2_util3^2) / sum(!is.na(bias_OR2_util3))),
+            OR3_util3_RMSE = sqrt(sum(bias_OR3_util3^2) / sum(!is.na(bias_OR3_util3))),
+            OR4_util3_RMSE = sqrt(sum(bias_OR4_util3^2) / sum(!is.na(bias_OR4_util3))),
+            wOR_util3_RMSE = sqrt(sum(bias_wOR_util3^2, na.rm = T) / sum(!is.na(bias_wOR_util3))),
+            OR1_util3_Power = sum((log_OR_CI1_100_90_60_10_0 > 0 & 
+                          log_OR_CI2_100_90_60_10_0 > 0) |
+                            (log_OR_CI1_100_90_60_10_0 < 0 &
+                          log_OR_CI2_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI1_100_90_60_10_0)),
+            OR2_util3_Power = sum((log_OR_CI3_100_90_60_10_0 > 0 & 
+                          log_OR_CI4_100_90_60_10_0 > 0) |
+                            (log_OR_CI3_100_90_60_10_0 < 0 &
+                          log_OR_CI4_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI3_100_90_60_10_0)),
+            OR3_util3_Power = sum((log_OR_CI5_100_90_60_10_0 > 0 & 
+                          log_OR_CI6_100_90_60_10_0 > 0) |
+                            (log_OR_CI5_100_90_60_10_0 < 0 &
+                          log_OR_CI6_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI5_100_90_60_10_0)),
+            OR4_util3_Power = sum((log_OR_CI7_100_90_60_10_0 > 0 & 
+                          log_OR_CI8_100_90_60_10_0 > 0) |
+                            (log_OR_CI7_100_90_60_10_0 < 0 &
+                          log_OR_CI8_100_90_60_10_0 < 0) , na.rm = T)/
+                      sum(!is.na(log_OR_CI7_100_90_60_10_0)),
+            wOR_util3_Power = sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)),
+            OR1_util3_CIwidth = mean(CIwidth_OR1_util3),
+            OR2_util3_CIwidth = mean(CIwidth_OR2_util3),
+            OR3_util3_CIwidth = mean(CIwidth_OR3_util3),
+            OR4_util3_CIwidth = mean(CIwidth_OR4_util3),
+            wOR_util3_CIwidth = mean(CI_width_wOR_util3)) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Utilities", "Measure")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) %>%
+  mutate(Utilities = case_match(Utilities, "util1" ~ "0, 25, 50, 75, 100",
+                            "util2" ~ "0, 60, 80, 90, 100",
+                            "util3" ~ "0, 10, 60, 90, 100")) 
+
+#expected power 
+true_power_100_75_50_25_0 <- as.data.frame(true_power_100_75_50_25_0)
+true_power_100_75_50_25_0$Utilities <- "0, 25, 50, 75, 100"
+true_power_100_75_50_25_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO","NP 5", "NP 6")
+true_power_100_75_50_25_0 <- true_power_100_75_50_25_0 %>%
+  rename(expected_power = true_power_100_75_50_25_0)
+
+true_power_100_90_80_60_0 <- as.data.frame(true_power_100_90_80_60_0)
+true_power_100_90_80_60_0$Utilities <- "0, 60, 80, 90, 100"
+true_power_100_90_80_60_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO",
+                                      "NP 5", "NP 6")
+true_power_100_90_80_60_0 <- true_power_100_90_80_60_0 %>%
+  rename(expected_power = true_power_100_90_80_60_0)
+
+true_power_100_90_60_10_0 <- as.data.frame(true_power_100_90_60_10_0)
+true_power_100_90_60_10_0$Utilities <- "0, 10, 60, 90, 100"
+true_power_100_90_60_10_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO",
+                                      "NP 5", "NP 6")
+true_power_100_90_60_10_0 <- true_power_100_90_60_10_0 %>%
+  rename(expected_power = true_power_100_90_60_10_0)
+
+true_power <- rbind(true_power_100_75_50_25_0, true_power_100_90_80_60_0,
+                    true_power_100_90_60_10_0)
+
+true_power <- true_power %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO",
+                                      "NP 1", "NP 2", "NP 3", "NP 4",
+                                      "NP 5", "NP 6")))
+
+true_power2_100_75_50_25_0 <- as.data.frame(true_power2_100_75_50_25_0)
+true_power2_100_75_50_25_0$Utilities <- "0, 25, 50, 75, 100"
+true_power2_100_75_50_25_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO","NP 5", "NP 6")
+true_power2_100_75_50_25_0 <- true_power2_100_75_50_25_0 %>%
+  rename(expected_power2 = true_power2_100_75_50_25_0)
+
+true_power2_100_90_80_60_0 <- as.data.frame(true_power2_100_90_80_60_0)
+true_power2_100_90_80_60_0$Utilities <- "0, 60, 80, 90, 100"
+true_power2_100_90_80_60_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO",
+                                      "NP 5", "NP 6")
+true_power2_100_90_80_60_0 <- true_power2_100_90_80_60_0 %>%
+  rename(expected_power2 = true_power2_100_90_80_60_0)
+
+true_power2_100_90_60_10_0 <- as.data.frame(true_power2_100_90_60_10_0)
+true_power2_100_90_60_10_0$Utilities <- "0, 10, 60, 90, 100"
+true_power2_100_90_60_10_0$Scenario <- c("Control", "Null", "NP 1", "NP 2", "NP 3", "NP 4",
+                                        "Low PO", "High PO",
+                                      "NP 5", "NP 6")
+true_power2_100_90_60_10_0 <- true_power2_100_90_60_10_0 %>%
+  rename(expected_power2 = true_power2_100_90_60_10_0)
+
+true_power2 <- rbind(true_power2_100_75_50_25_0, true_power2_100_90_80_60_0,
+                    true_power2_100_90_60_10_0)
+
+true_power2 <- true_power2 %>%
+  group_by(Scenario) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO",
+                                      "NP 1", "NP 2", "NP 3", "NP 4",
+                                      "NP 5", "NP 6")))
+
+
+util_table %>% filter(Summary == "wOR") %>%
+  merge(true_power, by = c("Scenario", "Utilities")) %>%
+  merge(true_power2, by = c("Scenario", "Utilities")) %>%
+  arrange(factor(Scenario, levels = c("Null", "Low PO", "High PO",
+                                      "NP 1", "NP 2", "NP 3", "NP 4",
+                                      "NP 5", "NP 6"))) %>%
+  relocate(Power, .after = CIwidth) %>%
+  rename("Expected Power Null" = expected_power,
+         "Expected Power Alt" = expected_power2) %>%
+  kable(caption = "Different Utilites Unadjusted Simulation", 
+      booktabs = T, align = "c", digits = 3, linesep = "") 
+
+kable(scenarios1, digits = 3, caption = "Distributions", row.names = F)
+
+```
+
+
+```{r, echo = F, warning = F, message = F, eval = F}
+#calculate rmse
+
+covid_scenarios %>% #cbind(blrm_covid_scenarios) %>%
+  filter(!is.na(weighted_log_OR_both_100_90_60_10_0)) %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(bias_wOR_blrm = weighted_OR_both_PPO - true_wOR_100_75_50_25_0,
+         bias_wOR_100_75_50_25_0 = weighted_OR_both_100_75_50_25_0 - true_wOR_100_75_50_25_0,
+         bias_wOR_100_90_60_10_0 = weighted_OR_both_100_90_60_10_0 - true_wOR_100_90_60_10_0,
+         bias_wOR_100_90_80_60_0 = weighted_OR_both_100_90_80_60_0 - true_wOR_100_90_80_60_0,
+         bias_mean_utility_100_75_50_25_0 = delta_100_75_50_25_0 - true_mean_utility_100_75_50_25_0,
+         bias_mean_utility_100_90_60_10_0 = delta_100_90_60_10_0 - true_mean_utility_100_90_60_10_0,
+         bias_mean_utility_100_90_80_60_0 = delta_100_90_80_60_0 - true_mean_utility_100_90_80_60_0,
+         bias_NB = NB_100_75_50_25_0 - true_NB) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(wOR_blrm = sqrt(sum(bias_wOR_blrm^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+            wOR1 = sqrt(sum(bias_wOR_100_75_50_25_0^2) / sum(!is.na(bias_wOR_100_75_50_25_0))),
+            wOR2 = sqrt(sum(bias_wOR_100_90_60_10_0^2) / sum(!is.na(bias_wOR_100_90_60_10_0))),
+            wOR3 = sqrt(sum(bias_wOR_100_90_80_60_0^2) / sum(!is.na(bias_wOR_100_90_80_60_0))),
+            mean_utility1 = sqrt(sum(bias_mean_utility_100_75_50_25_0^2) /
+                                                      sum(!is.na(bias_mean_utility_100_75_50_25_0))),
+            mean_utility2 = sqrt(sum(bias_mean_utility_100_90_60_10_0^2) /
+                                                      sum(!is.na(bias_mean_utility_100_90_60_10_0))),
+            mean_utility3 = sqrt(sum(bias_mean_utility_100_90_80_60_0^2) /
+                                                      sum(!is.na(bias_mean_utility_100_90_80_60_0))),
+            NB = sqrt(sum(bias_NB^2) / sum(!is.na(bias_NB)))) %>%
+  select(Scenario, wOR_blrm, wOR1, wOR2, wOR3) %>%
+  kable(caption = "RMSE Evenly Distributed Outcome", 
+      booktabs = T, align = "c", digits = 3) %>%
+  kable_paper("hover")   
+
+
+
+covid_scenarios  %>% cbind(blrm_covid_scenarios) %>%
+  filter(!is.na(weighted_log_OR_both_100_90_60_10_0)) %>% 
+  merge(true_vals, by = "Scenario") %>% 
+  mutate(CI_width_wOR_blrm = `weighted_log_OR_both_CI_PPO.97.5%` -
+                             `weighted_log_OR_both_CI_PPO.2.5%`,
+         CI_width_wOR_100_75_50_25_0 = `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` -
+                                        `weighted_log_OR_both_CI.2.5%_100_75_50_25_0`,
+         CI_width_wOR_100_90_60_10_0 = `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` -
+                                        `weighted_log_OR_both_CI.2.5%_100_90_60_10_0`,
+         CI_width_wOR_100_90_80_60_0 = `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` -
+                                        `weighted_log_OR_both_CI.2.5%_100_90_80_60_0`,
+         CI_width_mean_utility_100_75_50_25_0 = `delta_CI.97.5%_100_75_50_25_0` -
+                                        `delta_CI.2.5%_100_75_50_25_0`,
+         CI_width_mean_utility_100_90_60_10_0 = `delta_CI.97.5%_100_90_60_10_0` -
+                                        `delta_CI.2.5%_100_90_60_10_0`,
+         CI_width_mean_utility_100_90_80_60_0 = `delta_CI.97.5%_100_90_80_60_0` -
+                                        `delta_CI.2.5%_100_90_80_60_0`,
+         CI_width_NB = `NB_CI.97.5%_100_75_50_25_0` - `NB_CI.2.5%_100_75_50_25_0`) %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(wOR_blrm = mean(CI_width_wOR_blrm),
+            wOR1 = mean(CI_width_wOR_100_75_50_25_0),
+            wOR2 = mean(CI_width_wOR_100_90_60_10_0),
+            wOR3 = mean(CI_width_wOR_100_90_80_60_0),
+            mean_utility1 = mean(CI_width_mean_utility_100_75_50_25_0),
+            mean_utility2 = mean(CI_width_mean_utility_100_90_60_10_0),
+            mean_utility3 = mean(CI_width_mean_utility_100_90_80_60_0),
+            NB = mean(CI_width_NB)) %>%
+  select(Scenario, wOR_blrm, wOR1, wOR2, wOR3) %>%
+  kable(caption = "Mean CI Width Evenly Distributed Outcome", 
+      booktabs = T, align = "c", digits = 3) %>%
+  kable_paper("hover")   
+
+```
+
+
+
+
+```{r}
+# make plot with power of different utilities 
+util_table_plot <- covid_scenarios %>% mutate_if(is.character, as.numeric) %>% 
+  merge(true_ORs, by = "Scenario") %>% 
+  merge(true_vals, by = "Scenario") %>%
+  group_by(Scenario) %>%
+  dplyr::summarize(
+            wOR_util1_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_75_50_25_0`)),
+            wOR_util2_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_80_60_0`)),
+            wOR_util3_Power_both = sum((`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` > 0 & 
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_both_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_both_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_both_CI.2.5%_100_90_60_10_0`)),
+            
+            wOR_util1_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_75_50_25_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_75_50_25_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_75_50_25_0`)),
+            wOR_util2_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_90_80_60_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_90_80_60_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_90_80_60_0`)),
+            wOR_util3_Power_util = sum((`weighted_log_OR_util_CI.2.5%_100_90_60_10_0` > 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`weighted_log_OR_util_CI.2.5%_100_90_60_10_0` < 0 &
+                          `weighted_log_OR_util_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`weighted_log_OR_util_CI.2.5%_100_90_60_10_0`)),
+            
+            delta_util1_Power_util = sum((`delta_CI.2.5%_100_75_50_25_0` > 0 &
+                          `delta_CI.97.5%_100_75_50_25_0` > 0) |
+                            (`delta_CI.2.5%_100_75_50_25_0` < 0 &
+                          `delta_CI.97.5%_100_75_50_25_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_75_50_25_0`)),
+            delta_util2_Power_util = sum((`delta_CI.2.5%_100_90_80_60_0` > 0 &
+                          `delta_CI.97.5%_100_90_80_60_0` > 0) |
+                            (`delta_CI.2.5%_100_90_80_60_0` < 0 &
+                          `delta_CI.97.5%_100_90_80_60_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_90_80_60_0`)),
+            delta_util3_Power_util = sum((`delta_CI.2.5%_100_90_60_10_0` > 0 &
+                          `delta_CI.97.5%_100_90_60_10_0` > 0) |
+                            (`delta_CI.2.5%_100_90_60_10_0` < 0 &
+                          `delta_CI.97.5%_100_90_60_10_0` < 0) , na.rm = T)/
+                      sum(!is.na(`delta_CI.2.5%_100_90_60_10_0`))
+            ) %>%
+  pivot_longer(cols = !Scenario,
+               names_to = "Measure",
+               values_to = "Value") %>%
+  separate(Measure, c("Summary", "Utilities", "Measure", "Weights")) %>%
+  pivot_wider(names_from = "Measure", values_from = "Value") %>% 
+  mutate(across(where(is.numeric), ~round(., 3))) %>%
+  mutate(Utilities = case_match(Utilities, "util1" ~ "0, 25, 50, 75, 100",
+                            "util2" ~ "0, 60, 80, 90, 100",
+                            "util3" ~ "0, 10, 60, 90, 100")) 
+
+
+power_util <- util_table_plot %>% filter(Summary %in% c("wOR", "delta")) %>% 
+  mutate(Utilities = factor(Utilities, levels = c("0, 25, 50, 75, 100", "0, 10, 60, 90, 100", "0, 60, 80, 90, 100")),
+         summary_new = factor(str_c(Summary, Weights, sep = " "), 
+                              levels = c("wOR both", "wOR util", "delta util"))) %>%
+  filter(Scenario %in% c("Null", "Low PO", "NP 1", "NP 3", "NP 5", "NP 6")) %>%
+  ggplot(aes(x = summary_new, y = Power, fill = Utilities)) + 
+  geom_col(position = "dodge") + 
+  theme_bw(base_size = 9) + 
+  scale_fill_manual(values = c(brewer.pal(10, "Paired")[6],  brewer.pal(10, "Paired")[8], 
+                               brewer.pal(10, "Paired")[2]),
+                    labels = c("100, 75, 50, 25, 0", "100, 90, 60, 10, 0", 
+                               "100, 90, 80, 60, 0")) +
+  xlab("Summary Measure")+
+  scale_x_discrete(labels = c("wOR\n Hybrid", "wOR\n Utility", "Mean\n Utility")) +
+  # scale_alpha_manual(values = c("both" = 1, "util" = 0.5),
+  #                    labels = c("both" = "Hybrid",
+  #                               "util" = "Utility Only")) +
+  facet_wrap(~Scenario, scales = "free_y", 
+             labeller = labeller(c("NP 1" = "NP 1", 
+                                  "NP 3" = "NP 2", 
+                                  "NP 5" = "NP 3",
+                                  "NP 6" = "NP 4"))) + 
+  theme(axis.text = element_text(size = 6),
+        axis.title = element_text(size = 8), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8), 
+        strip.text.x = element_text(size = 8), legend.position = "bottom") +
+  guides(fill = guide_legend(nrow = 3))
+
+p4 <- odds_ratio1 %>% 
+  pivot_longer(cols = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization", "Death"), 
+               names_to = "Outcome", values_to = "OR") %>% 
+  filter(Outcome != "Death") %>%
+  mutate(Outcome = factor(Outcome, levels = c("Nothing", "Hypoxemia", "ED Visit", "Hopsitalization")),
+         Scenario = factor(Scenario, levels = c("Null", "Low PO", "High PO", 
+                                                "NP 1", "NP 2", "NP 3", "NP 4", 
+                                                "NP 5", "NP 6")))  %>%
+  filter(Scenario %in% c("Null", "Low PO", "NP 1", "NP 3", "NP 5", "NP 6")) %>%
+  group_by(Scenario) %>%
+  ggplot(aes(x = Outcome, y = OR, color = Scenario, group = Scenario)) +
+  geom_line(linewidth = 1) + geom_point(show.legend = F) +
+  theme_bw(base_size = 9) + ylab("Cumulative OR") + 
+  # scale_linetype_manual(values = c(rep(c("longdash", "solid"), 4))) +
+  # scale_color_manual(values = c(rep(brewer.pal(8, "Paired")[2], 2), 
+  #                               rep(brewer.pal(8, "Paired")[4], 2), rep(brewer.pal(8, "Paired")[6], 2),
+  #                               rep(brewer.pal(8, "Paired")[8], 2))) + 
+  scale_color_brewer(palette = "Dark2",
+                     labels = c("NP 1" = "NP 1", 
+                                  "NP 3" = "NP 2", 
+                                  "NP 5" = "NP 3",
+                                  "NP 6" = "NP 4")) + 
+  theme(axis.text = element_text(size = 8),
+        axis.title = element_text(size = 8), legend.text = element_text(size = 8),
+        legend.title = element_text(size = 8), 
+        strip.text.x = element_text(size = 8), legend.position = "bottom")  + 
+  scale_x_discrete(labels = c("Nothing" = "1|2",
+                              "Hypoxemia" = "2|3", 
+                              "ED Visit" = "3|4", 
+                              "Hopsitalization" = "4|5")) + 
+  guides(color = guide_legend(nrow = 2, byrow = T))
+
+plots <- plot_grid(p4 + theme(legend.position = "none"), 
+                   power_util+ theme(legend.position = "none"), 
+                   labels = c("A", "B"), align = "hv", axis = "tb")
+
+legend_scenario <- cowplot::get_plot_component(p4, 'guide-box-bottom')
+legend_power <- cowplot::get_plot_component(power_util, 'guide-box-bottom')
+
+legends <- plot_grid(legend_scenario, legend_power)
+
+plot_grid(plots, legends, nrow = 2, rel_heights = c(2.3, 0.5))+ 
+  theme(
+    plot.background = element_rect(fill = "white", color = NA), # Outer plot background
+    panel.background = element_rect(fill = "white", color = NA) # Panel background within each plot
+  )
+# 
+ggsave("/users/3/turne899/Stratified_Model/unadjusted_sim_081326_new/utility_power_covid_081826.png", dpi = 600,
+       height = 5, width = 8)
+```
+
+
+
